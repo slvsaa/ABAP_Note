@@ -1,0 +1,224 @@
+*&---------------------------------------------------------------------*
+*& Include  ZALV_SAA_CLS
+*&---------------------------------------------------------------------*
+
+*----------------------------------------------------------------------*
+*  I N T E R F A C E
+*----------------------------------------------------------------------*
+INTERFACE zif_alv_display.                "Defines an interface (contract) containing 4 methods
+  METHODS:
+    display,
+    refresh,
+    set_title
+      IMPORTING iv_title TYPE string,
+    load_data
+      IMPORTING it_data TYPE tty_sflight.
+ENDINTERFACE.
+
+*----------------------------------------------------------------------*
+*  ABSTRACT CLASS
+*----------------------------------------------------------------------*
+CLASS lcl_alv_display DEFINITION ABSTRACT.
+  PUBLIC SECTION.
+    INTERFACES zif_alv_display.                 "This class implements the interface zif_alv_display
+    ALIASES:                                    "ALIASES for Shorten the writing.
+      display   FOR zif_alv_display~display,
+      refresh   FOR zif_alv_display~refresh,
+      set_title FOR zif_alv_display~set_title,
+      load_data FOR zif_alv_display~load_data.
+  PROTECTED SECTION.                            "Only be accessed by this class and its derived classes.
+    DATA: ms_layout TYPE lvc_s_layo,
+          mt_data   TYPE tty_sflight.
+ENDCLASS.
+
+CLASS lcl_alv_display IMPLEMENTATION.
+  METHOD zif_alv_display~load_data.              "copy the received data (it_data) to the class's mt_data attribute.
+    mt_data = it_data.
+  ENDMETHOD.
+
+  METHOD zif_alv_display~display.
+  ENDMETHOD.
+  METHOD zif_alv_display~refresh.
+  ENDMETHOD.
+  METHOD zif_alv_display~set_title.
+  ENDMETHOD.
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*  HELPER: build salv dengan setting standard
+*----------------------------------------------------------------------*
+CLASS lcl_salv_helper DEFINITION FINAL.
+  PUBLIC SECTION.
+    CLASS-METHODS build
+      IMPORTING iv_title       TYPE string
+      CHANGING  ct_data        TYPE tty_sflight
+      RETURNING VALUE(ro_salv) TYPE REF TO cl_salv_table.
+ENDCLASS.
+
+CLASS lcl_salv_helper IMPLEMENTATION.
+  METHOD build.
+    TRY.
+        cl_salv_table=>factory(                       "to create ALV objects
+          IMPORTING r_salv_table = ro_salv
+          CHANGING  t_table      = ct_data ).
+      CATCH cx_salv_error INTO DATA(lx).
+        MESSAGE |Error: { lx->get_text( ) }| TYPE 'E'.
+        RETURN.
+    ENDTRY.
+
+    " Title
+    DATA lv_title TYPE char70.
+    lv_title = iv_title.
+
+    DATA lo_disp TYPE REF TO cl_salv_display_settings.
+    lo_disp = ro_salv->get_display_settings( ).
+    lo_disp->set_list_header( lv_title ).                             "set title
+    lo_disp->set_striped_pattern( cl_salv_display_settings=>true ).   "set zebra pattern rows
+
+    " Kolom
+    DATA lo_cols TYPE REF TO cl_salv_columns_table.
+    lo_cols = ro_salv->get_columns( ).
+    lo_cols->set_optimize( abap_true ).
+
+    TRY.
+        DATA lo_col TYPE REF TO cl_salv_column_table.
+        lo_col ?= lo_cols->get_column( 'CARRID' ).
+        lo_col->set_medium_text( 'Airline' ).
+        lo_col ?= lo_cols->get_column( 'CONNID' ).
+        lo_col->set_medium_text( 'Flight No' ).
+        lo_col ?= lo_cols->get_column( 'FLDATE' ).
+        lo_col->set_medium_text( 'Date' ).
+        lo_col ?= lo_cols->get_column( 'PRICE' ).
+        lo_col->set_medium_text( 'Price' ).
+        lo_col ?= lo_cols->get_column( 'CURRENCY' ).
+        lo_col->set_medium_text( 'Currency' ).
+        lo_col ?= lo_cols->get_column( 'PLANETYPE' ).
+        lo_col->set_medium_text( 'Plane Type' ).
+        lo_col ?= lo_cols->get_column( 'SEATSMAX' ).
+        lo_col->set_medium_text( 'Max Seats' ).
+        lo_col ?= lo_cols->get_column( 'SEATSOCC' ).
+        lo_col->set_medium_text( 'Occ. Seats' ).
+        lo_col ?= lo_cols->get_column( 'PAYMENTSUM' ).
+        lo_col->set_medium_text( 'Payment Sum' ).
+      CATCH cx_salv_not_found.                          "#EC NO_HANDLER
+    ENDTRY.
+
+    " Toolbar
+    ro_salv->get_functions( )->set_all( abap_true ).    "Enables all standard ALV toolbar buttons
+
+    " Selection
+    ro_salv->get_selections( )->set_selection_mode(     "Set the ALV selection mode so that users can select both rows and columns at the same time.
+      if_salv_c_selection_mode=>row_column ).
+  ENDMETHOD.
+ENDCLASS.
+
+*======================================================================*
+*  G R I D
+*======================================================================*
+CLASS lcl_alv_grid DEFINITION INHERITING FROM lcl_alv_display.
+  PUBLIC SECTION.
+    METHODS:
+      constructor,
+      zif_alv_display~display   REDEFINITION,     "Registering the method to be overridden from the parent class
+      zif_alv_display~refresh   REDEFINITION,
+      zif_alv_display~set_title REDEFINITION.
+  PRIVATE SECTION.
+    DATA: mo_salv  TYPE REF TO cl_salv_table,
+          mv_title TYPE string.
+ENDCLASS.
+
+CLASS lcl_alv_grid IMPLEMENTATION.
+  METHOD constructor.
+    super->constructor( ).
+  ENDMETHOD.
+
+  METHOD zif_alv_display~set_title.
+    mv_title = iv_title.
+  ENDMETHOD.
+
+  METHOD zif_alv_display~display.
+    mo_salv = lcl_salv_helper=>build(     "Constructs an ALV object using a helper, then displays it.
+      EXPORTING iv_title = mv_title
+      CHANGING  ct_data  = mt_data ).
+    IF mo_salv IS BOUND.                  "IS BOUND ensures the object is not null before it is called.
+      mo_salv->display( ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD zif_alv_display~refresh.
+    IF mo_salv IS BOUND.
+      mo_salv->refresh( ).
+    ENDIF.
+  ENDMETHOD.
+ENDCLASS.
+
+*======================================================================*
+*  L I S T
+*======================================================================*
+CLASS lcl_alv_list DEFINITION INHERITING FROM lcl_alv_display.
+  PUBLIC SECTION.
+    METHODS:
+      constructor,
+      zif_alv_display~display   REDEFINITION,
+      zif_alv_display~refresh   REDEFINITION,
+      zif_alv_display~set_title REDEFINITION.
+  PRIVATE SECTION.
+    DATA: mt_fieldcat_list TYPE slis_t_fieldcat_alv,
+          mv_title         TYPE char50.
+ENDCLASS.
+
+CLASS lcl_alv_list IMPLEMENTATION.
+  METHOD constructor.
+    super->constructor( ).
+
+    DATA: ls_slis TYPE slis_fieldcat_alv.
+
+    DEFINE add_field.                           "defines the add_field macro which simplifies filling in catalog fields
+      CLEAR ls_slis.
+      ls_slis-fieldname   = &1.
+      ls_slis-seltext_m   = &2.
+      ls_slis-outputlen   = &3.
+      ls_slis-ref_tabname = 'SFLIGHT'.
+      APPEND ls_slis TO mt_fieldcat_list.
+    END-OF-DEFINITION.
+
+    add_field 'CARRID'     'Airline'      8.
+    add_field 'CONNID'     'Flight No'    8.
+    add_field 'FLDATE'     'Date'         10.
+    add_field 'PRICE'      'Price'        12.
+    add_field 'CURRENCY'   'Currency'     5.
+    add_field 'PLANETYPE'  'Plane Type'   10.
+    add_field 'SEATSMAX'   'Max Seats'    10.
+    add_field 'SEATSOCC'   'Occ. Seats'   10.
+    add_field 'PAYMENTSUM' 'Payment Sum'  15.
+  ENDMETHOD.
+
+  METHOD zif_alv_display~set_title.
+    mv_title = iv_title.
+  ENDMETHOD.
+
+  METHOD zif_alv_display~display.
+    CALL FUNCTION 'REUSE_ALV_LIST_DISPLAY'
+      EXPORTING
+        i_callback_program = sy-repid
+        it_fieldcat        = mt_fieldcat_list
+        i_default          = 'X'
+        i_save             = 'A'
+      TABLES
+        t_outtab           = mt_data
+      EXCEPTIONS
+        program_error      = 1
+        OTHERS             = 2.
+    IF sy-subrc <> 0.
+* Implement suitable error handling here
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD zif_alv_display~refresh.
+    " List tidak support refresh in-place, re-display
+    zif_alv_display~display( ).
+  ENDMETHOD.
+ENDCLASS.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740

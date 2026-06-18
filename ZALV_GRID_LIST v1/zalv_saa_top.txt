@@ -1,0 +1,50 @@
+*&---------------------------------------------------------------------*
+*& Include  ZALV_SAA_TOP
+*&---------------------------------------------------------------------*
+
+*----------------------------------------------------------------------*
+* T Y P E S
+*----------------------------------------------------------------------*
+TYPES: BEGIN OF ty_sflight,
+         carrid     TYPE sflight-carrid,
+         connid     TYPE sflight-connid,
+         fldate     TYPE sflight-fldate,
+         price      TYPE sflight-price,
+         currency   TYPE sflight-currency,
+         planetype  TYPE sflight-planetype,
+         seatsmax   TYPE sflight-seatsmax,
+         seatsocc   TYPE sflight-seatsocc,
+         paymentsum TYPE sflight-paymentsum,
+       END OF ty_sflight.
+
+TYPES: tty_sflight TYPE TABLE OF ty_sflight.
+
+*----------------------------------------------------------------------*
+* C O N S T A N T S
+*----------------------------------------------------------------------*
+CONSTANTS: gc_grid TYPE char4 VALUE 'GRID',
+           gc_list TYPE char4 VALUE 'LIST'.
+
+*----------------------------------------------------------------------*
+* I N T E R N A L   T A B L E S   &   W O R K I N G - A R E A S
+*----------------------------------------------------------------------*
+INTERFACE zif_alv_display DEFERRED.
+
+DATA: gt_sflight TYPE tty_sflight,
+      go_display TYPE REF TO zif_alv_display.
+
+*----------------------------------------------------------------------*
+* S E L E C T I O N - S C R E E N
+*----------------------------------------------------------------------*
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
+  SELECT-OPTIONS: so_car FOR sflight-carrid,
+                  so_dat FOR sflight-fldate.
+SELECTION-SCREEN END OF BLOCK b1.
+
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE TEXT-002.
+  PARAMETERS: p_grid RADIOBUTTON GROUP alv DEFAULT 'X',
+              p_list RADIOBUTTON GROUP alv.
+SELECTION-SCREEN END OF BLOCK b2.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740

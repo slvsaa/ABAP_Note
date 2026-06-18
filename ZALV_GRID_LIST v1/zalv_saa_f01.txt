@@ -1,0 +1,38 @@
+*&---------------------------------------------------------------------*
+*& Include  ZALV_SAA_F01
+*& Deskripsi: Subroutine / FORM routines
+*&---------------------------------------------------------------------*
+
+*----------------------------------------------------------------------*
+* S U B  -  R O U T I N E S
+*----------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*&      Form FETCH_DATA
+*&---------------------------------------------------------------------*
+*&      Get data into internal table
+*&---------------------------------------------------------------------*
+FORM fetch_data.
+  REFRESH gt_sflight.
+
+  SELECT carrid
+         connid
+         fldate
+         price
+         currency
+         planetype
+         seatsmax
+         seatsocc
+         paymentsum
+    INTO TABLE gt_sflight
+    FROM sflight
+    WHERE carrid IN so_car
+      AND fldate IN so_dat.
+
+  IF sy-subrc <> 0.
+    CLEAR gt_sflight.
+  ENDIF.
+ENDFORM.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740
