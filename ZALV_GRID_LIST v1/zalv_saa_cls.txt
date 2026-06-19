@@ -5,7 +5,7 @@
 *----------------------------------------------------------------------*
 *  I N T E R F A C E
 *----------------------------------------------------------------------*
-INTERFACE zif_alv_display.                "Defines an interface (contract) containing 4 methods
+INTERFACE zif_alv_display.                      "Defines an interface (contract) containing 4 methods
   METHODS:
     display,
     refresh,
@@ -42,6 +42,27 @@ CLASS lcl_alv_display IMPLEMENTATION.
   ENDMETHOD.
   METHOD zif_alv_display~set_title.
   ENDMETHOD.
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*  F O R W A R D   D E C L A R A T I O N
+*----------------------------------------------------------------------*
+CLASS lcl_alv_grid DEFINITION DEFERRED.
+
+*----------------------------------------------------------------------*
+*  E V E N T   H A N D L E R   C L A S S
+*----------------------------------------------------------------------*
+CLASS lcl_event_handler DEFINITION FINAL.
+  PUBLIC SECTION.
+    DATA: mo_grid TYPE REF TO lcl_alv_grid.
+
+    METHODS:
+      on_user_command
+                    FOR EVENT added_function OF cl_salv_events          "Event: user klik tombol toolbar
+        IMPORTING e_salv_function,                                      "Parameter: kode tombol yang diklik
+      on_double_click
+                    FOR EVENT double_click OF cl_salv_events_table      "Event: user double-klik baris
+        IMPORTING row column.                                           "Parameter: baris & kolom yang diklik
 ENDCLASS.
 
 *----------------------------------------------------------------------*
@@ -82,29 +103,19 @@ CLASS lcl_salv_helper IMPLEMENTATION.
 
     TRY.
         DATA lo_col TYPE REF TO cl_salv_column_table.
-        lo_col ?= lo_cols->get_column( 'CARRID' ).
-        lo_col->set_medium_text( 'Airline' ).
-        lo_col ?= lo_cols->get_column( 'CONNID' ).
-        lo_col->set_medium_text( 'Flight No' ).
-        lo_col ?= lo_cols->get_column( 'FLDATE' ).
-        lo_col->set_medium_text( 'Date' ).
-        lo_col ?= lo_cols->get_column( 'PRICE' ).
-        lo_col->set_medium_text( 'Price' ).
-        lo_col ?= lo_cols->get_column( 'CURRENCY' ).
-        lo_col->set_medium_text( 'Currency' ).
-        lo_col ?= lo_cols->get_column( 'PLANETYPE' ).
-        lo_col->set_medium_text( 'Plane Type' ).
-        lo_col ?= lo_cols->get_column( 'SEATSMAX' ).
-        lo_col->set_medium_text( 'Max Seats' ).
-        lo_col ?= lo_cols->get_column( 'SEATSOCC' ).
-        lo_col->set_medium_text( 'Occ. Seats' ).
-        lo_col ?= lo_cols->get_column( 'PAYMENTSUM' ).
-        lo_col->set_medium_text( 'Payment Sum' ).
+
+        DEFINE set_col.
+          lo_col ?= lo_cols->get_column( &1 ).        "check CL_SALV_COLUMN to check another method
+          lo_col->set_medium_text( &2 ).
+        END-OF-DEFINITION.
+
+        set_col 'CARRID'  'Airline'.
+        set_col 'CONNID'  'Flight No'.
+        set_col 'FLDATE'  'Date'.
+        set_col 'ZDESC'   'Description'.
+
       CATCH cx_salv_not_found.                          "#EC NO_HANDLER
     ENDTRY.
-
-    " Toolbar
-    ro_salv->get_functions( )->set_all( abap_true ).    "Enables all standard ALV toolbar buttons
 
     " Selection
     ro_salv->get_selections( )->set_selection_mode(     "Set the ALV selection mode so that users can select both rows and columns at the same time.
@@ -119,17 +130,27 @@ CLASS lcl_alv_grid DEFINITION INHERITING FROM lcl_alv_display.
   PUBLIC SECTION.
     METHODS:
       constructor,
-      zif_alv_display~display   REDEFINITION,     "Registering the method to be overridden from the parent class
+      zif_alv_display~display   REDEFINITION,       "Registering the method to be overridden from the parent class
       zif_alv_display~refresh   REDEFINITION,
-      zif_alv_display~set_title REDEFINITION.
+      zif_alv_display~set_title REDEFINITION,
+      do_create,
+      do_edit   IMPORTING iv_row TYPE i DEFAULT 0,
+      do_delete.
   PRIVATE SECTION.
-    DATA: mo_salv  TYPE REF TO cl_salv_table,
-          mv_title TYPE string.
+    DATA: mo_salv    TYPE REF TO cl_salv_table,
+          mo_handler TYPE REF TO lcl_event_handler,
+          mv_title   TYPE string.
+    METHODS:
+      register_events,                                    "Daftarkan event handler ke ALV
+      add_crud_buttons,                                   "Tambahkan tombol Create/Edit/Delete ke toolbar
+      get_selected_row RETURNING VALUE(rv_row) TYPE i.    "Ambil nomor baris yang dipilih user
 ENDCLASS.
 
 CLASS lcl_alv_grid IMPLEMENTATION.
   METHOD constructor.
     super->constructor( ).
+    mo_handler = NEW lcl_event_handler( ).
+    mo_handler->mo_grid = me.
   ENDMETHOD.
 
   METHOD zif_alv_display~set_title.
@@ -137,10 +158,12 @@ CLASS lcl_alv_grid IMPLEMENTATION.
   ENDMETHOD.
 
   METHOD zif_alv_display~display.
-    mo_salv = lcl_salv_helper=>build(     "Constructs an ALV object using a helper, then displays it.
+    mo_salv = lcl_salv_helper=>build(
       EXPORTING iv_title = mv_title
       CHANGING  ct_data  = mt_data ).
-    IF mo_salv IS BOUND.                  "IS BOUND ensures the object is not null before it is called.
+    IF mo_salv IS BOUND.
+      add_crud_buttons( ).      "tambah tombol CRUD dulu
+      register_events( ).       "baru register event handler
       mo_salv->display( ).
     ENDIF.
   ENDMETHOD.
@@ -149,6 +172,222 @@ CLASS lcl_alv_grid IMPLEMENTATION.
     IF mo_salv IS BOUND.
       mo_salv->refresh( ).
     ENDIF.
+  ENDMETHOD.
+
+  METHOD register_events.
+    DATA lo_events TYPE REF TO cl_salv_events_table.
+    lo_events = mo_salv->get_event( ).
+    SET HANDLER mo_handler->on_user_command FOR lo_events.
+    SET HANDLER mo_handler->on_double_click FOR lo_events.
+  ENDMETHOD.
+
+  METHOD add_crud_buttons.
+    mo_salv->set_screen_status(
+      pfstatus      = 'ZALV_STATUS'                   " PF-STATUS yang dibuat di SE41
+      report         = sy-repid
+      set_functions = mo_salv->c_functions_all ).
+  ENDMETHOD.
+
+  METHOD get_selected_row.
+    DATA lo_sels TYPE REF TO cl_salv_selections.
+    DATA lt_rows TYPE salv_t_row.
+    lo_sels = mo_salv->get_selections( ).
+    lt_rows = lo_sels->get_selected_rows( ).
+    IF lt_rows IS INITIAL.
+      rv_row = 0.
+    ELSE.
+      READ TABLE lt_rows INTO rv_row INDEX 1.
+    ENDIF.
+  ENDMETHOD.
+
+"*--------------------------------------------------------------------*
+*  C R E A T E
+*  Build pop up untuk create new record & save new record
+*--------------------------------------------------------------------*
+  METHOD do_create.
+    DATA lt_popup TYPE TABLE OF sval.
+    DATA ls_popup TYPE sval.
+
+    " Daftar field untuk popup -- kosong untuk Create
+    DEFINE add_field.
+      CLEAR ls_popup.
+      ls_popup-tabname   = 'ZSFLIGHT'.
+      ls_popup-fieldname = &1.
+      ls_popup-fieldtext = &2.
+      ls_popup-field_obl = &3.
+      APPEND ls_popup TO lt_popup.
+    END-OF-DEFINITION.
+
+    add_field 'CARRID'     'Airline'      'X'.
+    add_field 'CONNID'     'Flight No'    'X'.
+    add_field 'FLDATE'     'Date'         'X'.
+    add_field 'ZDESC'      'Description'  ''.
+
+    CALL FUNCTION 'POPUP_GET_VALUES'
+      EXPORTING
+        popup_title     = 'Create New Flight Record'
+      TABLES
+        fields          = lt_popup
+      EXCEPTIONS
+        error_in_fields = 1
+        OTHERS          = 2.
+
+    CHECK sy-subrc = 0.
+
+    " Map hasil popup ke struktur ty_sflight
+    DATA ls_new TYPE ty_sflight.
+    FIELD-SYMBOLS <fs> TYPE any.
+    LOOP AT lt_popup INTO ls_popup.
+      ASSIGN COMPONENT ls_popup-fieldname OF STRUCTURE ls_new TO <fs>.
+      IF sy-subrc = 0.
+        <fs> = ls_popup-value.
+      ENDIF.
+    ENDLOOP.
+
+    APPEND ls_new TO mt_data.
+    PERFORM save_record USING ls_new 'C'.
+
+    mo_salv->refresh( ).
+    MESSAGE 'Record berhasil dibuat' TYPE 'S'.
+  ENDMETHOD.
+
+  "*--------------------------------------------------------------------*
+*  E D I T   (Update)
+*  iv_row = 0  --> ambil dari selection (klik tombol Edit)
+*  iv_row > 0  --> dari double-click, baris sudah diketahui
+*--------------------------------------------------------------------*
+  METHOD do_edit.
+    DATA lv_row TYPE i.
+
+    IF iv_row > 0.                    "Klik tombol edit
+      lv_row = iv_row.
+    ELSE.
+      lv_row = get_selected_row( ).   "Double klik baris
+      IF lv_row = 0.
+        MESSAGE 'Pilih salah satu baris terlebih dahulu' TYPE 'W'.
+        RETURN.
+      ENDIF.
+    ENDIF.
+
+    DATA ls_row TYPE ty_sflight.
+    READ TABLE mt_data INTO ls_row INDEX lv_row.
+    IF sy-subrc <> 0.
+      RETURN.
+    ENDIF.
+
+    " Popup dengan nilai pre-fill dari baris yang dipilih
+    DATA lt_popup TYPE TABLE OF sval.
+    DATA ls_popup TYPE sval.
+    FIELD-SYMBOLS <pf> TYPE any.
+
+    DEFINE add_field.
+      CLEAR ls_popup.
+      ls_popup-tabname   = 'ZSFLIGHT'.
+      ls_popup-fieldname = &1.
+      ls_popup-fieldtext = &2.
+      " Pre-fill: ambil nilai dari ls_row berdasarkan nama field
+      ASSIGN COMPONENT &1 OF STRUCTURE ls_row TO <pf>.
+      IF sy-subrc = 0.
+        ls_popup-value = <pf>.
+      ENDIF.
+      APPEND ls_popup TO lt_popup.
+    END-OF-DEFINITION.
+
+*    add_field 'CARRID'     'Airline'.      "Key tidak boleh diedit
+*    add_field 'CONNID'     'Flight No'.
+*    add_field 'FLDATE'     'Date'.
+    add_field 'ZDESC'      'Description'.
+
+    CALL FUNCTION 'POPUP_GET_VALUES'
+      EXPORTING
+        popup_title     = 'Edit Flight Record'
+      TABLES
+        fields          = lt_popup
+      EXCEPTIONS
+        error_in_fields = 1
+        OTHERS          = 2.
+
+    CHECK sy-subrc = 0.
+
+    " Map hasil popup ke ls_row lalu update internal table
+    FIELD-SYMBOLS <fs> TYPE any.
+    LOOP AT lt_popup INTO ls_popup.
+      ASSIGN COMPONENT ls_popup-fieldname OF STRUCTURE ls_row TO <fs>.
+      IF sy-subrc = 0.
+        <fs> = ls_popup-value.
+      ENDIF.
+    ENDLOOP.
+
+    MODIFY mt_data FROM ls_row INDEX lv_row.
+    PERFORM save_record USING ls_row 'U'.
+    mo_salv->refresh( ).
+    MESSAGE 'Record berhasil diupdate' TYPE 'S'.
+  ENDMETHOD.
+
+*--------------------------------------------------------------------*
+*  D E L E T E
+*--------------------------------------------------------------------*
+  METHOD do_delete.
+    DATA lo_sels TYPE REF TO cl_salv_selections.
+    DATA lt_rows TYPE salv_t_row.
+    DATA lv_row  TYPE i.
+
+    lo_sels = mo_salv->get_selections( ).
+    lt_rows = lo_sels->get_selected_rows( ).
+
+    IF lt_rows IS INITIAL.
+      MESSAGE 'Pilih minimal satu baris untuk dihapus' TYPE 'W'.
+      RETURN.
+    ENDIF.
+
+    DATA lv_answer TYPE char1.
+    CALL FUNCTION 'POPUP_TO_CONFIRM'
+      EXPORTING
+        titlebar       = 'Konfirmasi Hapus'
+        text_question  = 'Yakin ingin menghapus record yang dipilih?'
+        text_button_1  = 'Ya'
+        text_button_2  = 'Tidak'
+        default_button = '2'
+      IMPORTING
+        answer         = lv_answer.
+
+    CHECK lv_answer = '1'.
+
+    " Sort descending agar index tidak bergeser saat hapus bertahap
+    SORT lt_rows DESCENDING.
+    LOOP AT lt_rows INTO lv_row.
+      DATA ls_del TYPE ty_sflight.
+      READ TABLE mt_data INTO ls_del INDEX lv_row.
+      IF sy-subrc = 0.
+        PERFORM save_record USING ls_del 'D'.
+        DELETE mt_data INDEX lv_row.
+      ENDIF.
+    ENDLOOP.
+
+    mo_salv->refresh( ).
+    MESSAGE 'Record berhasil dihapus' TYPE 'S'.
+  ENDMETHOD.
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*  E V E N T   H A N D L E R   I M P L E M E N T A T I O N
+*----------------------------------------------------------------------*
+CLASS lcl_event_handler IMPLEMENTATION.
+  METHOD on_user_command.                     "Event handler button toolbar
+    CASE e_salv_function.
+      WHEN gc_create.
+        mo_grid->do_create( ).
+
+      WHEN gc_edit.
+        mo_grid->do_edit( ).
+
+      WHEN gc_delete.
+        mo_grid->do_delete( ).
+    ENDCASE.
+  ENDMETHOD.
+
+  METHOD on_double_click.                 "Event handler double clik
+    mo_grid->do_edit( iv_row = row ).     "Double-click langsung edit baris tersebut
   ENDMETHOD.
 ENDCLASS.
 
@@ -178,19 +417,15 @@ CLASS lcl_alv_list IMPLEMENTATION.
       ls_slis-fieldname   = &1.
       ls_slis-seltext_m   = &2.
       ls_slis-outputlen   = &3.
-      ls_slis-ref_tabname = 'SFLIGHT'.
+      ls_slis-ref_tabname = 'ZSFLIGHT'.
       APPEND ls_slis TO mt_fieldcat_list.
     END-OF-DEFINITION.
 
-    add_field 'CARRID'     'Airline'      8.
-    add_field 'CONNID'     'Flight No'    8.
-    add_field 'FLDATE'     'Date'         10.
-    add_field 'PRICE'      'Price'        12.
-    add_field 'CURRENCY'   'Currency'     5.
-    add_field 'PLANETYPE'  'Plane Type'   10.
-    add_field 'SEATSMAX'   'Max Seats'    10.
-    add_field 'SEATSOCC'   'Occ. Seats'   10.
-    add_field 'PAYMENTSUM' 'Payment Sum'  15.
+    add_field 'CARRID'     'Airline'            8.
+    add_field 'CONNID'     'Flight No'          8.
+    add_field 'FLDATE'     'Date'               10.
+    add_field 'ZDESC'      'Description'        15.
+
   ENDMETHOD.
 
   METHOD zif_alv_display~set_title.

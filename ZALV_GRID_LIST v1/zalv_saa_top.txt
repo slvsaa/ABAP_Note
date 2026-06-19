@@ -6,15 +6,10 @@
 * T Y P E S
 *----------------------------------------------------------------------*
 TYPES: BEGIN OF ty_sflight,
-         carrid     TYPE sflight-carrid,
-         connid     TYPE sflight-connid,
-         fldate     TYPE sflight-fldate,
-         price      TYPE sflight-price,
-         currency   TYPE sflight-currency,
-         planetype  TYPE sflight-planetype,
-         seatsmax   TYPE sflight-seatsmax,
-         seatsocc   TYPE sflight-seatsocc,
-         paymentsum TYPE sflight-paymentsum,
+         carrid TYPE zsflight-carrid,
+         connid TYPE zsflight-connid,
+         fldate TYPE zsflight-fldate,
+         zdesc  TYPE zsflight-zdesc,
        END OF ty_sflight.
 
 TYPES: tty_sflight TYPE TABLE OF ty_sflight.
@@ -24,6 +19,10 @@ TYPES: tty_sflight TYPE TABLE OF ty_sflight.
 *----------------------------------------------------------------------*
 CONSTANTS: gc_grid TYPE char4 VALUE 'GRID',
            gc_list TYPE char4 VALUE 'LIST'.
+
+CONSTANTS: gc_create TYPE salv_de_function VALUE '&ZCRE',
+           gc_edit   TYPE salv_de_function VALUE '&ZEDT',
+           gc_delete TYPE salv_de_function VALUE '&ZDLT'.
 
 *----------------------------------------------------------------------*
 * I N T E R N A L   T A B L E S   &   W O R K I N G - A R E A S
@@ -36,14 +35,14 @@ DATA: gt_sflight TYPE tty_sflight,
 *----------------------------------------------------------------------*
 * S E L E C T I O N - S C R E E N
 *----------------------------------------------------------------------*
-SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE TEXT-001.
-  SELECT-OPTIONS: so_car FOR sflight-carrid,
-                  so_dat FOR sflight-fldate.
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+SELECT-OPTIONS: so_car FOR zsflight-carrid,
+                so_dat FOR zsflight-fldate.
 SELECTION-SCREEN END OF BLOCK b1.
 
-SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE TEXT-002.
-  PARAMETERS: p_grid RADIOBUTTON GROUP alv DEFAULT 'X',
-              p_list RADIOBUTTON GROUP alv.
+SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-002.
+PARAMETERS: p_grid RADIOBUTTON GROUP alv DEFAULT 'X',
+            p_list RADIOBUTTON GROUP alv.
 SELECTION-SCREEN END OF BLOCK b2.
 
 ----------------------------------------------------------------------------------
