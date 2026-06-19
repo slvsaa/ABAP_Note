@@ -1,0 +1,38 @@
+*&---------------------------------------------------------------------*
+*& Include  ZALV_SAA_TOP
+*&---------------------------------------------------------------------*
+
+*----------------------------------------------------------------------*
+* T Y P E S
+*----------------------------------------------------------------------*
+TYPES: BEGIN OF ty_po,
+         ebeln TYPE ekko-ebeln,    "Nomor Purchase Order
+         lifnr TYPE ekko-lifnr,    "Nomor Vendor
+         bedat TYPE ekko-bedat,    "Tanggal PO dibuat
+       END OF ty_po.
+
+TYPES: tty_po TYPE TABLE OF ty_po.
+
+*----------------------------------------------------------------------*
+* C O N S T A N T S
+*----------------------------------------------------------------------*
+CONSTANTS: gc_grid TYPE char4 VALUE 'GRID',
+           gc_list TYPE char4 VALUE 'LIST'.
+
+*----------------------------------------------------------------------*
+* I N T E R N A L   T A B L E S   &   W O R K I N G - A R E A S
+*----------------------------------------------------------------------*
+INTERFACE zif_alv_display DEFERRED.
+
+DATA: gt_po      TYPE tty_po,
+      go_display TYPE REF TO zif_alv_display.
+
+*----------------------------------------------------------------------*
+* S E L E C T I O N - S C R E E N
+*----------------------------------------------------------------------*
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+SELECT-OPTIONS: so_ebn FOR ekko-ebeln.
+SELECTION-SCREEN END OF BLOCK b1.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740

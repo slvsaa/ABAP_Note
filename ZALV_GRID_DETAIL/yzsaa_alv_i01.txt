@@ -1,0 +1,30 @@
+*&---------------------------------------------------------------------*
+*& Include  ZALV_SAA_I01
+*&---------------------------------------------------------------------*
+
+*----------------------------------------------------------------------*
+* I N I T I A L I Z A T I O N
+*----------------------------------------------------------------------*
+INITIALIZATION.
+
+
+*----------------------------------------------------------------------*
+* S T A R T  O F  S E L E C T I O N
+*----------------------------------------------------------------------*
+START-OF-SELECTION.
+  PERFORM fetch_data.
+
+  IF gt_po IS INITIAL.
+    MESSAGE 'No data found for selected criteria' TYPE 'W'.
+    RETURN.
+  ENDIF.
+
+  go_display = NEW lcl_alv_grid( ).
+  go_display->load_data( gt_po ).
+  go_display->set_title( 'Purchase Order Report' ).
+  go_display->display( ).
+
+END-OF-SELECTION.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740

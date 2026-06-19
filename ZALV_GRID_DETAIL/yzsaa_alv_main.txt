@@ -1,0 +1,43 @@
+*&---------------------------------------------------------------------*
+*& Report ZALV_SAA_MAIN
+*&---------------------------------------------------------------------*
+*=========================================================================================*
+*Confidential and Proprietary
+* ((PROJECT NAME))
+*-----------------------------------------------------------------------------------------*
+*Program Name   :
+*RICEF ID       :
+*Created on     :
+*Created by     :
+*Functional     :
+*Description    : Purchase Order Report - Double click row to open ME23N
+* --------------------------------------------------------------------------------------- *
+* Modification list.:                                                                     *
+* Date            Changed by        Changed by            Description:                    *
+* --/--/--        -------           ------------          ---------                       *
+* ======================================================================================= *
+
+REPORT yzsaa_alv_main.
+
+************************************************************************
+*  T A B L E S
+************************************************************************
+TABLES: ekko.   "Tabel header Purchase Order
+
+************************************************************************
+*  I N C L U D E
+************************************************************************
+INCLUDE yzsaa_alv_top.   " Types, Data, Constants
+INCLUDE yzsaa_alv_cls.   " Class Definition & Implementation
+INCLUDE yzsaa_alv_i01.   " Events (START-OF-SELECTION, etc)
+INCLUDE yzsaa_alv_f01.   " Form Routines
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: Hard coded
+*   Error:
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740

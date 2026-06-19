@@ -1,0 +1,219 @@
+*&---------------------------------------------------------------------*
+*& Include  ZALV_SAA_CLS
+*&---------------------------------------------------------------------*
+
+*----------------------------------------------------------------------*
+*  I N T E R F A C E
+*----------------------------------------------------------------------*
+INTERFACE zif_alv_display.                "Kontrak: semua class display wajib punya 4 method ini
+  METHODS:
+    display,
+    refresh,
+    set_title
+      IMPORTING iv_title TYPE string,
+    load_data
+      IMPORTING it_data TYPE tty_po.
+ENDINTERFACE.
+
+*----------------------------------------------------------------------*
+*  ABSTRACT CLASS
+*----------------------------------------------------------------------*
+CLASS lcl_alv_display DEFINITION ABSTRACT.
+  PUBLIC SECTION.
+    INTERFACES zif_alv_display.
+    ALIASES:
+      display   FOR zif_alv_display~display,
+      refresh   FOR zif_alv_display~refresh,
+      set_title FOR zif_alv_display~set_title,
+      load_data FOR zif_alv_display~load_data.
+  PROTECTED SECTION.                      "Bisa diakses oleh class ini dan turunannya
+    DATA: ms_layout TYPE lvc_s_layo,
+          mt_data   TYPE tty_po.
+ENDCLASS.
+
+CLASS lcl_alv_display IMPLEMENTATION.
+  METHOD zif_alv_display~load_data.       "Salin data yang diterima ke attribute internal class
+    mt_data = it_data.
+  ENDMETHOD.
+
+  METHOD zif_alv_display~display.
+  ENDMETHOD.
+  METHOD zif_alv_display~refresh.
+  ENDMETHOD.
+  METHOD zif_alv_display~set_title.
+  ENDMETHOD.
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*  F O R W A R D   D E C L A R A T I O N
+*----------------------------------------------------------------------*
+CLASS lcl_alv_grid DEFINITION DEFERRED.
+
+*----------------------------------------------------------------------*
+*  E V E N T   H A N D L E R   C L A S S
+*----------------------------------------------------------------------*
+CLASS lcl_event_handler DEFINITION FINAL.
+  PUBLIC SECTION.
+    DATA: mo_grid TYPE REF TO lcl_alv_grid.
+
+    METHODS:
+      on_double_click
+                    FOR EVENT double_click OF cl_salv_events_table
+        IMPORTING row column.             "row = index baris yang diklik
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*  HELPER: build salv dengan setting standard
+*----------------------------------------------------------------------*
+CLASS lcl_salv_helper DEFINITION FINAL.
+  PUBLIC SECTION.
+    CLASS-METHODS build
+      IMPORTING iv_title       TYPE string
+      CHANGING  ct_data        TYPE tty_po
+      RETURNING VALUE(ro_salv) TYPE REF TO cl_salv_table.
+ENDCLASS.
+
+CLASS lcl_salv_helper IMPLEMENTATION.
+  METHOD build.
+    TRY.
+        cl_salv_table=>factory(
+          IMPORTING r_salv_table = ro_salv
+          CHANGING  t_table      = ct_data ).
+      CATCH cx_salv_error INTO DATA(lx).
+        MESSAGE |Error: { lx->get_text( ) }| TYPE 'E'.
+        RETURN.
+    ENDTRY.
+
+    " Title
+    DATA lv_title TYPE char70.
+    lv_title = iv_title.
+
+    DATA lo_disp TYPE REF TO cl_salv_display_settings.
+    lo_disp = ro_salv->get_display_settings( ).
+    lo_disp->set_list_header( lv_title ).
+    lo_disp->set_striped_pattern( cl_salv_display_settings=>true ).
+
+    " Kolom
+    DATA lo_cols TYPE REF TO cl_salv_columns_table.
+    lo_cols = ro_salv->get_columns( ).
+    lo_cols->set_optimize( abap_true ).
+
+    TRY.
+        DATA lo_col TYPE REF TO cl_salv_column_table.
+
+        DEFINE set_col.
+          lo_col ?= lo_cols->get_column( &1 ).
+          lo_col->set_medium_text( &2 ).
+        END-OF-DEFINITION.
+
+        set_col 'EBELN'  'PO Number'.
+        set_col 'LIFNR'  'Vendor'.
+        set_col 'BEDAT'  'PO Date'.
+
+      CATCH cx_salv_not_found.            "#EC NO_HANDLER
+    ENDTRY.
+
+    " Selection mode: baris dan kolom bisa dipilih
+    ro_salv->get_selections( )->set_selection_mode(
+      if_salv_c_selection_mode=>row_column ).
+  ENDMETHOD.
+ENDCLASS.
+
+*======================================================================*
+*  G R I D
+*======================================================================*
+CLASS lcl_alv_grid DEFINITION INHERITING FROM lcl_alv_display.
+  PUBLIC SECTION.
+    METHODS:
+      constructor,
+      zif_alv_display~display   REDEFINITION,
+      zif_alv_display~refresh   REDEFINITION,
+      zif_alv_display~set_title REDEFINITION,
+      do_navigate IMPORTING iv_row TYPE i.              "Method navigate ke ME23N
+  PRIVATE SECTION.
+    DATA: mo_salv    TYPE REF TO cl_salv_table,
+          mo_handler TYPE REF TO lcl_event_handler,
+          mv_title   TYPE string.
+    METHODS:
+      register_events.
+ENDCLASS.
+
+CLASS lcl_alv_grid IMPLEMENTATION.
+  METHOD constructor.
+    super->constructor( ).
+    mo_handler = NEW lcl_event_handler( ).
+    mo_handler->mo_grid = me.              "Kasih tahu handler bahwa grid-nya adalah object ini
+  ENDMETHOD.
+
+  METHOD zif_alv_display~set_title.
+    mv_title = iv_title.
+  ENDMETHOD.
+
+  METHOD zif_alv_display~display.
+    mo_salv = lcl_salv_helper=>build(
+      EXPORTING iv_title = mv_title
+      CHANGING  ct_data  = mt_data ).
+    IF mo_salv IS BOUND.
+      register_events( ).
+      mo_salv->display( ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD zif_alv_display~refresh.
+    IF mo_salv IS BOUND.
+      mo_salv->refresh( ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD register_events.
+    DATA lo_events TYPE REF TO cl_salv_events_table.
+    lo_events = mo_salv->get_event( ).
+    SET HANDLER mo_handler->on_double_click FOR lo_events.
+  ENDMETHOD.
+
+"*--------------------------------------------------------------------*
+*  N A V I G A T E   T O   M E 2 3 N
+*  Dipanggil saat user double-click sebuah baris di ALV
+*  Flow: cek otorisasi # ambil nomor PO # set parameter # buka ME23N
+*--------------------------------------------------------------------*
+  METHOD do_navigate.
+
+    "*--- 1. Pengecekan Otorisasi ---*
+    " Cek apakah user punya hak akses untuk membuka tcode ME23N
+    AUTHORITY-CHECK OBJECT 'S_TCODE'
+      ID 'TCD' FIELD 'ME23N'.
+    IF sy-subrc <> 0.
+      MESSAGE 'Anda tidak memiliki otorisasi untuk membuka ME23N' TYPE 'W'.
+      RETURN.
+    ENDIF.
+
+    "*--- 2. Ambil Data Baris yang Di-klik ---*
+    DATA ls_row TYPE ty_po.
+    READ TABLE mt_data INTO ls_row INDEX iv_row.
+    IF sy-subrc <> 0.
+      " Baris tidak ditemukan di internal table (seharusnya tidak terjadi)
+      RETURN.
+    ENDIF.
+
+    "*--- 3. Set Parameter & Buka ME23N di Window Baru ---*
+    " SET PARAMETER ID 'BES': pre-fill field nomor PO di ME23N
+    " 'BES' adalah SAP memory ID untuk field EBELN (nomor PO)
+    SET PARAMETER ID 'BES' FIELD ls_row-ebeln.
+
+    CALL TRANSACTION 'ME23N' AND SKIP FIRST SCREEN.
+
+  ENDMETHOD.
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*  E V E N T   H A N D L E R   I M P L E M E N T A T I O N
+*----------------------------------------------------------------------*
+CLASS lcl_event_handler IMPLEMENTATION.
+  METHOD on_double_click.
+    " Teruskan index baris yang diklik ke method do_navigate di grid
+    mo_grid->do_navigate( iv_row = row ).
+  ENDMETHOD.
+ENDCLASS.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740

@@ -1,0 +1,31 @@
+*&---------------------------------------------------------------------*
+*& Include  ZALV_SAA_F01
+*& Deskripsi: Subroutine / FORM routines
+*&---------------------------------------------------------------------*
+
+*----------------------------------------------------------------------*
+* S U B  -  R O U T I N E S
+*----------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*&      Form FETCH_DATA
+*&---------------------------------------------------------------------*
+*&      Ambil data PO dari tabel EKKO sesuai filter selection screen
+*&---------------------------------------------------------------------*
+FORM fetch_data.
+  REFRESH gt_po.
+
+  SELECT ebeln    "Nomor PO
+         lifnr    "Nomor Vendor
+         bedat    "Tanggal PO
+    INTO TABLE gt_po
+    FROM ekko
+    WHERE ebeln IN so_ebn .
+
+  IF sy-subrc <> 0.
+    CLEAR gt_po.
+  ENDIF.
+ENDFORM.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740
