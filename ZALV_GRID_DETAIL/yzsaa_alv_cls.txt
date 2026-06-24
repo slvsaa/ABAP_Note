@@ -98,18 +98,25 @@ CLASS lcl_salv_helper IMPLEMENTATION.
     lo_cols = ro_salv->get_columns( ).
     lo_cols->set_optimize( abap_true ).
 
+    " ## KOLOM: tambah / ubah label di sini #############################
+    DATA: BEGIN OF ls_col,
+            fname TYPE fieldname,
+            mtext TYPE scrtext_m,
+          END OF ls_col.
+    DATA lt_cols LIKE TABLE OF ls_col.
+
+    lt_cols = VALUE #(
+      ( fname = 'EBELN' mtext = 'PO Number' )
+      ( fname = 'LIFNR' mtext = 'Vendor'    )
+      ( fname = 'BEDAT' mtext = 'PO Date'   )
+    ).
+
+    DATA lo_col TYPE REF TO cl_salv_column_table.
     TRY.
-        DATA lo_col TYPE REF TO cl_salv_column_table.
-
-        DEFINE set_col.
-          lo_col ?= lo_cols->get_column( &1 ).
-          lo_col->set_medium_text( &2 ).
-        END-OF-DEFINITION.
-
-        set_col 'EBELN'  'PO Number'.
-        set_col 'LIFNR'  'Vendor'.
-        set_col 'BEDAT'  'PO Date'.
-
+        LOOP AT lt_cols INTO ls_col.
+          lo_col ?= lo_cols->get_column( ls_col-fname ).
+          lo_col->set_medium_text( ls_col-mtext ).
+        ENDLOOP.
       CATCH cx_salv_not_found.            "#EC NO_HANDLER
     ENDTRY.
 
@@ -214,6 +221,13 @@ CLASS lcl_event_handler IMPLEMENTATION.
     mo_grid->do_navigate( iv_row = row ).
   ENDMETHOD.
 ENDCLASS.
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: Hard coded
+*   Error:
 
 ----------------------------------------------------------------------------------
 Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740
