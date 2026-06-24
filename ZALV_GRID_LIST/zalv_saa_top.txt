@@ -3,7 +3,7 @@
 *&---------------------------------------------------------------------*
 
 *----------------------------------------------------------------------*
-* T Y P E S
+* T Y P E S  ## sesuaikan dengan struktur data report
 *----------------------------------------------------------------------*
 TYPES: BEGIN OF ty_sflight,
          carrid TYPE zsflight-carrid,
@@ -13,6 +13,13 @@ TYPES: BEGIN OF ty_sflight,
        END OF ty_sflight.
 
 TYPES: tty_sflight TYPE TABLE OF ty_sflight.
+
+" Tipe untuk konfigurasi kolom ALV Grid (dipakai build_col_config & lcl_salv_helper)
+TYPES: BEGIN OF ty_col_config,
+         fname TYPE fieldname,
+         mtext TYPE scrtext_m,
+       END OF ty_col_config.
+TYPES: tty_col_config TYPE TABLE OF ty_col_config.
 
 *----------------------------------------------------------------------*
 * C O N S T A N T S
@@ -29,11 +36,13 @@ CONSTANTS: gc_create TYPE salv_de_function VALUE '&ZCRE',
 *----------------------------------------------------------------------*
 INTERFACE zif_alv_display DEFERRED.
 
-DATA: gt_sflight TYPE tty_sflight,
-      go_display TYPE REF TO zif_alv_display.
+DATA: gt_sflight  TYPE tty_sflight,
+      go_display  TYPE REF TO zif_alv_display,
+      gt_fieldcat TYPE slis_t_fieldcat_alv,   " Field catalog untuk mode List
+      gv_colpos   TYPE i.                     " Auto-increment posisi kolom (dipakai f_fieldcatg)
 
 *----------------------------------------------------------------------*
-* S E L E C T I O N - S C R E E N
+* S E L E C T I O N - S C R E E N  ## sesuaikan filter dengan kebutuhan report
 *----------------------------------------------------------------------*
 SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
 SELECT-OPTIONS: so_car FOR zsflight-carrid,
@@ -41,8 +50,9 @@ SELECT-OPTIONS: so_car FOR zsflight-carrid,
 SELECTION-SCREEN END OF BLOCK b1.
 
 SELECTION-SCREEN BEGIN OF BLOCK b2 WITH FRAME TITLE text-002.
-PARAMETERS: p_grid RADIOBUTTON GROUP alv DEFAULT 'X',
-            p_list RADIOBUTTON GROUP alv.
+PARAMETERS: p_grid  RADIOBUTTON GROUP alv DEFAULT 'X',
+            p_list  RADIOBUTTON GROUP alv,
+            p_gruse RADIOBUTTON GROUP alv.             " Grid REUSE (CRUD)
 SELECTION-SCREEN END OF BLOCK b2.
 
 ----------------------------------------------------------------------------------

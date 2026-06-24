@@ -8,6 +8,125 @@
 *----------------------------------------------------------------------*
 
 *&---------------------------------------------------------------------*
+*&      Form F_FIELDCATG
+*&---------------------------------------------------------------------*
+*&      Engine: builder satu entry field catalog ALV List.
+*&      Dipanggil oleh FORM build_fieldcat -- jangan diubah.
+*&
+*&      Parameter wajib  : fu_types, fu_fname
+*&      Parameter opsional: sisanya isi '' jika tidak dipakai
+*&---------------------------------------------------------------------*
+FORM f_fieldcatg USING VALUE(fu_types)
+                       VALUE(fu_fname)
+                       VALUE(fu_reftb)
+                       VALUE(fu_refld)
+                       VALUE(fu_noout)
+                       VALUE(fu_outln)
+                       VALUE(fu_fltxt)
+                       VALUE(fu_dosum)
+                       VALUE(fu_hotsp)
+                       VALUE(fu_dec)
+                       VALUE(fu_waers)
+                       VALUE(fu_meins)
+                       VALUE(fu_waers_f)
+                       VALUE(fu_meins_f)
+                       VALUE(fu_checkbox)
+                       VALUE(fu_fixcolumn)
+                       VALUE(fu_key)
+                       VALUE(fu_icon)
+                       VALUE(fu_just)
+                       VALUE(fu_edit).
+
+  DATA: ld_fieldcat TYPE slis_fieldcat_alv,
+        lv_lengt    TYPE i.
+
+  ADD 1 TO gv_colpos.
+  CLEAR ld_fieldcat.
+
+  ld_fieldcat-col_pos       = gv_colpos.
+  ld_fieldcat-tabname       = fu_types.
+  ld_fieldcat-fieldname     = fu_fname.
+  ld_fieldcat-ref_tabname   = fu_reftb.
+  ld_fieldcat-ref_fieldname = fu_refld.
+  ld_fieldcat-no_out        = fu_noout.
+
+  IF fu_outln IS INITIAL.
+    lv_lengt = strlen( fu_fltxt ).
+    ld_fieldcat-outputlen = lv_lengt.
+  ELSE.
+    ld_fieldcat-outputlen = fu_outln.
+  ENDIF.
+
+  ld_fieldcat-seltext_l    = fu_fltxt.
+  ld_fieldcat-seltext_m    = fu_fltxt.
+  ld_fieldcat-seltext_s    = fu_fltxt.
+  ld_fieldcat-reptext_ddic = fu_fltxt.
+  ld_fieldcat-do_sum       = fu_dosum.
+  ld_fieldcat-hotspot      = fu_hotsp.
+  ld_fieldcat-decimals_out = fu_dec.
+  ld_fieldcat-currency     = fu_waers.
+  ld_fieldcat-quantity     = fu_meins.
+  ld_fieldcat-cfieldname   = fu_waers_f.
+  ld_fieldcat-qfieldname   = fu_meins_f.
+  ld_fieldcat-checkbox     = fu_checkbox.
+  ld_fieldcat-fix_column   = fu_fixcolumn.
+  ld_fieldcat-key          = fu_key.
+  ld_fieldcat-icon         = fu_icon.
+  ld_fieldcat-just         = fu_just.
+  ld_fieldcat-edit         = fu_edit.
+
+  APPEND ld_fieldcat TO gt_fieldcat.
+  CLEAR ld_fieldcat.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form BUILD_FIELDCAT
+*&---------------------------------------------------------------------*
+*&  !! CUSTOMIZATION POINT # MODE LIST !!
+*&
+*&  Tambah / hapus / ubah baris PERFORM di sini untuk mengatur
+*&  kolom yang muncul di ALV List.
+*&
+*&  Kolom header (urutan parameter):
+*&  fu_fname     fu_reftb    fu_refld    fu_noout  fu_outln
+*&  fu_fltxt     fu_dosum    fu_hotsp    fu_dec    fu_waers
+*&  fu_meins     fu_waers_f  fu_meins_f  fu_checkbox  fu_fixcolumn
+*&  fu_key       fu_icon     fu_just     fu_edit
+*&---------------------------------------------------------------------*
+FORM build_fieldcat.
+  CLEAR: gt_fieldcat, gv_colpos.
+
+  PERFORM f_fieldcatg USING 'GT_SFLIGHT':
+*   fu_fname    fu_reftb    fu_refld    fu_noout  fu_outln  fu_fltxt        fu_dosum  fu_hotsp  fu_dec  fu_waers  fu_meins  fu_waers_f  fu_meins_f  fu_checkbox  fu_fixcolumn  fu_key  fu_icon  fu_just  fu_edit
+    'CARRID'    'ZSFLIGHT'  'CARRID'    ''        ''        'Airline'       ''        ''        ''      ''        ''        ''          ''          ''           ''            ''      ''       'L'      '',
+    'CONNID'    'ZSFLIGHT'  'CONNID'    ''        ''        'Flight No'     ''        ''        ''      ''        ''        ''          ''          ''           ''            ''      ''       'L'      '',
+    'FLDATE'    'ZSFLIGHT'  'FLDATE'    ''        '10'      'Date'          ''        ''        ''      ''        ''        ''          ''          ''           ''            ''      ''       'L'      '',
+    'ZDESC'     'ZSFLIGHT'  'ZDESC'     ''        '15'      'Description'   ''        ''        ''      ''        ''        ''          ''          ''           ''            ''      ''       'L'      ''.
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form BUILD_COL_CONFIG
+*&---------------------------------------------------------------------*
+*&  !! CUSTOMIZATION POINT # MODE GRID !!
+*&
+*&  Isi tabel ct_cols dengan pasangan (fname / mtext) untuk mengatur
+*&  label kolom di ALV Grid (cl_salv_table).
+*&  Urutan baris = urutan kolom yang tampil.
+*&---------------------------------------------------------------------*
+FORM build_col_config CHANGING ct_cols TYPE tty_col_config.
+
+  ct_cols = VALUE #(
+    ( fname = 'CARRID' mtext = 'Airline'     )
+    ( fname = 'CONNID' mtext = 'Flight No'   )
+    ( fname = 'FLDATE' mtext = 'Date'        )
+    ( fname = 'ZDESC'  mtext = 'Description' )
+  ).
+
+ENDFORM.
+
+*&---------------------------------------------------------------------*
 *&      Form FETCH_DATA
 *&---------------------------------------------------------------------*
 *&      Get data into internal table
@@ -33,10 +152,6 @@ ENDFORM.
 *&      Form SAVE_RECORD
 *&---------------------------------------------------------------------*
 *&      Simpan perubahan ke database
-*&
-*&      PENTING: SFLIGHT adalah tabel standar SAP.
-*&      Di sistem production gunakan Z-table sendiri.
-*&
 *&      iv_mode: 'C' = Create, 'U' = Update, 'D' = Delete
 *&---------------------------------------------------------------------*
 FORM save_record USING iv_data TYPE ty_sflight
@@ -79,6 +194,39 @@ FORM save_record USING iv_data TYPE ty_sflight
   ENDCASE.
 
   COMMIT WORK AND WAIT.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form F_PF_STATUS_SET
+*&---------------------------------------------------------------------*
+*&      Callback REUSE_ALV_GRID_DISPLAY: set toolbar
+*&      Memakai PF-STATUS 'ZALV_STATUS' yang sama dengan mode SALV Grid
+*&---------------------------------------------------------------------*
+FORM f_pf_status_set USING rt_extab TYPE slis_t_extab.
+  SET PF-STATUS 'ZALV_STATUS' EXCLUDING rt_extab.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form F_USER_COMMAND
+*&---------------------------------------------------------------------*
+*&      Callback REUSE_ALV_GRID_DISPLAY: tangani aksi user
+*&      (double-click baris & klik tombol toolbar CRUD)
+*&---------------------------------------------------------------------*
+FORM f_user_command USING r_ucomm     TYPE sy-ucomm
+                          rs_selfield TYPE slis_selfield.
+  DATA lo_grid TYPE REF TO lcl_alv_grid_reuse.
+
+  TRY.
+      lo_grid ?= go_display.                      " Cast go_display ke lcl_alv_grid_reuse
+      lo_grid->handle_command(
+        iv_ucomm = r_ucomm
+        iv_row   = rs_selfield-tabindex ).
+    CATCH cx_sy_move_cast_error.                  " Abaikan jika mode bukan Grid Reuse
+  ENDTRY.
+
+  rs_selfield-refresh    = 'X'.                   " Paksa ALV refresh setelah setiap aksi
+  rs_selfield-row_stable = 'X'.
+  rs_selfield-col_stable = 'X'.
 ENDFORM.
 
 ----------------------------------------------------------------------------------

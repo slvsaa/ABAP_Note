@@ -2,8 +2,14 @@
 *& Report ZALV_SAA_MAIN
 *&---------------------------------------------------------------------*
 *=========================================================================================*
-*Confidential and Proprietary
-* ((PROJECT NAME))
+* T E M P L A T E  –  ALV Report (Grid & List)
+*-----------------------------------------------------------------------------------------*
+* Cara pakai template ini:
+*   1. Sesuaikan TYPE ty_sflight & SELECT di fetch_data  # zalv_saa_top / f01
+*   2. Tambah / ubah kolom Grid                          # FORM build_col_config  (f01)
+*   3. Tambah / ubah kolom List                          # FORM build_fieldcat    (f01)
+*   4. Sesuaikan filter selection-screen                 # zalv_saa_top
+*   5. Ganti judul report                                # zalv_saa_i01
 *-----------------------------------------------------------------------------------------*
 *Program Name   :
 *RICEF ID       :
