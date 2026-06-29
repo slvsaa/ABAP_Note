@@ -1,0 +1,57 @@
+*&---------------------------------------------------------------------*
+*& Report ZFUP_SAA_MAIN
+*&---------------------------------------------------------------------*
+*=========================================================================================*
+* T E M P L A T E  --  File Upload to Database (Excel / CSV)
+*-----------------------------------------------------------------------------------------*
+* Cara pakai template ini:
+*   1. Sesuaikan TYPE ty_upload & tabel target    --> zfup_saa_top / f01
+*   2. Sesuaikan mapping kolom Excel              --> FORM parse_excel_data  (f01)
+*   3. Sesuaikan mapping kolom CSV                --> FORM parse_csv_data    (f01)
+*   4. Sesuaikan logic DB update                  --> FORM update_to_db      (f01)
+*   5. Sesuaikan label kolom ALV                  --> lcl_salv_helper=>build (cls)
+*-----------------------------------------------------------------------------------------*
+* Format file yang didukung:
+*   - Excel  : .xls (simpan sebagai Excel 97-2003 Workbook)
+*   - CSV    : .csv dengan delimiter koma (,) atau semicolon (;)
+*
+* Struktur kolom file (default -- sesuaikan di parse_*_data):
+*   Col 1: CARRID  |  Col 2: CONNID  |  Col 3: FLDATE  |  Col 4: ZDESC
+*   Format FLDATE: YYYYMMDD (contoh: 20240115)
+*-----------------------------------------------------------------------------------------*
+*Program Name   :
+*RICEF ID       :
+*Created on     :
+*Created by     :
+*Functional     :
+*Description    :
+* --------------------------------------------------------------------------------------- *
+* Modification list.:                                                                     *
+* Date            Changed by        Changed by            Description:                    *
+* --/--/--        -------           ------------          ---------                       *
+* ======================================================================================= *
+
+REPORT YZSAA_UPLOAD_MAIN.
+
+************************************************************************
+*  T A B L E S
+************************************************************************
+TABLES: zsflight.
+
+************************************************************************
+*  I N C L U D E
+************************************************************************
+INCLUDE YZSAA_UPLOAD_TOP.   " Types, Data, Constants, Selection Screen
+INCLUDE YZSAA_UPLOAD_CLS.   " Interface, Abstract Class, Grid Upload Class
+INCLUDE YZSAA_UPLOAD_I01.   " Events (F4, START-OF-SELECTION)
+INCLUDE YZSAA_UPLOAD_F01.   " Form Routines (Read File, Parse, Update DB)
+
+
+*Messages
+*----------------------------------------------------------
+*
+* Message class: Hard coded
+*   Error inisialisasi ALV:
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740

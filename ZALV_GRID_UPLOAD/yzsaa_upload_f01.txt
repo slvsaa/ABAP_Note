@@ -1,0 +1,462 @@
+*&---------------------------------------------------------------------*
+*& Include  YZSAA_UPLOAD_F01
+*& Tujuan : FORM routines -- baca file, validasi, parse, update DB
+*&---------------------------------------------------------------------*
+
+*----------------------------------------------------------------------*
+* S U B  -  R O U T I N E S
+*----------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*&      Form VALIDATE_AND_PREVIEW
+*&---------------------------------------------------------------------*
+FORM validate_and_preview.
+  " Cek apakah path file sudah diisi (OBLIGATORY di selection screen
+  " seharusnya mencegah ini, tapi defensive check tetap baik)
+  IF p_file IS INITIAL.
+    MESSAGE 'Pilih file terlebih dahulu menggunakan tombol F4' TYPE 'W'.
+    RETURN.
+  ENDIF.
+
+  " Reset tabel global dan flag error setiap kali preview dijalankan
+  " agar data dari run sebelumnya tidak tercampur
+  CLEAR: gt_upload, gv_has_error.
+
+  " Deteksi format file dari ekstensi -- split di titik terakhir
+  " Hasil: lv_path = nama file, lv_fmt = ekstensi (xls/csv/dll)
+  SPLIT p_file AT '.' INTO DATA(lv_path) DATA(lv_fmt).
+  TRANSLATE lv_fmt TO LOWER CASE.  " Normalisasi: 'CSV', 'Csv', 'csv' -> semua 'csv'
+
+  " Pilih FORM baca file sesuai format
+  IF lv_fmt <> 'csv'.
+    " Semua selain .csv dianggap Excel (.xls)
+    PERFORM read_file_excel USING p_file CHANGING gt_upload.
+  ELSE.
+    PERFORM read_file_csv   USING p_file CHANGING gt_upload.
+  ENDIF.
+
+  " Hentikan jika tidak ada data (file kosong atau gagal dibaca)
+  IF gt_upload IS INITIAL.
+    MESSAGE 'Tidak ada data yang berhasil dibaca dari file' TYPE 'W'.
+    RETURN.
+  ENDIF.
+
+  " Cek setiap baris apakah sudah ada di database
+  PERFORM check_existing CHANGING gt_upload.
+
+  " Hitung jumlah baris error untuk ditampilkan di judul ALV
+  DATA lv_err_count TYPE i.
+  LOOP AT gt_upload TRANSPORTING NO FIELDS WHERE status = gc_error.
+    ADD 1 TO lv_err_count.
+  ENDLOOP.
+
+  " Buat judul ALV yang informatif berdasarkan kondisi data
+  DATA lv_title TYPE string.
+  IF gv_has_error = abap_true.
+    " Jika ada error: tampilkan jumlah baris dan jumlah error
+    " LINES( gt_upload ) = function bawaan ABAP untuk hitung baris tabel
+    lv_title = |Upload Preview ({ LINES( gt_upload ) } baris, { lv_err_count } ERROR) -- Perbaiki error sebelum upload|.
+  ELSE.
+    lv_title = |Upload Preview ({ LINES( gt_upload ) } baris) -- Centang baris lalu klik Update to DB|.
+  ENDIF.
+
+  " Buat object ALV baru, isi data, set judul, lalu tampilkan
+  " NEW = ekuivalen dengan CREATE OBJECT di ABAP lama
+  go_display = NEW lcl_alv_upload_grid( ).
+  go_display->load_data( gt_upload ).
+  go_display->set_title( lv_title ).
+  go_display->display( ).   " Blocking -- program tunggu sampai user keluar dari ALV
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form READ_FILE_EXCEL
+*&---------------------------------------------------------------------*
+*& Baca file Excel (.xls) ke internal table alsmex_tabline,
+*& validasi header kolom, lalu teruskan ke parse_excel_data.
+*& Catatan: ALSM_EXCEL_TO_INTERNAL_TABLE hanya support format .xls
+*&          (Excel 97-2003). File .xlsx harus di-save as .xls dulu.
+*&---------------------------------------------------------------------*
+FORM read_file_excel USING    iv_path   TYPE rlgrap-filename
+                     CHANGING ct_upload TYPE tty_upload.
+  CLEAR ct_upload.  " Kosongkan tabel output sebelum diisi
+
+  " ALSMEX_TABLINE adalah struktur SAP untuk hasil baca Excel:
+  " { row TYPE int2, col TYPE int2, value TYPE char50 }
+  " Setiap cell Excel menjadi satu baris di tabel ini
+  DATA lt_raw TYPE TABLE OF alsmex_tabline.
+
+  CALL FUNCTION 'ALSM_EXCEL_TO_INTERNAL_TABLE'
+    EXPORTING
+      filename                = iv_path
+      i_begin_col             = 1      " Mulai dari kolom 1 (A)
+      i_begin_row             = 1      " Mulai dari baris 1 -- termasuk header!
+      i_end_col               = 4      " Sampai kolom 4 (D) -- sesuaikan jumlah field
+      i_end_row               = 9999   " Batas maksimal baris data
+    TABLES
+      intern                  = lt_raw  " Output: tabel alsmex_tabline
+    EXCEPTIONS
+      inconsistent_parameters = 1
+      upload_ole              = 2       " Error ini muncul jika file format salah
+      OTHERS                  = 3.
+
+  IF sy-subrc <> 0.
+    MESSAGE |Gagal membaca Excel (rc={ sy-subrc }). Pastikan format .xls| TYPE 'W'.
+    RETURN.
+  ENDIF.
+
+  " Validasi header kolom (baris 1)
+  " Tujuan: pastikan user upload file dengan template yang benar.
+  " Jika kolom salah urutan atau nama berbeda, mapping data akan salah.
+  DATA: lv_h1 TYPE c LENGTH 100,
+        lv_h2 TYPE c LENGTH 100,
+        lv_h3 TYPE c LENGTH 100,
+        lv_h4 TYPE c LENGTH 100.
+
+  " Baca nilai cell di baris 1 untuk setiap kolom
+  LOOP AT lt_raw INTO DATA(ls_hdr) WHERE row = 1.
+    CASE ls_hdr-col.
+      WHEN 1. lv_h1 = ls_hdr-value.
+      WHEN 2. lv_h2 = ls_hdr-value.
+      WHEN 3. lv_h3 = ls_hdr-value.
+      WHEN 4. lv_h4 = ls_hdr-value.
+    ENDCASE.
+  ENDLOOP.
+
+  " Normalisasi: uppercase dan hilangkan spasi agar perbandingan akurat
+  " ('carrid' = 'CARRID', ' CARRID ' = 'CARRID')
+  TRANSLATE lv_h1 TO UPPER CASE. CONDENSE lv_h1.
+  TRANSLATE lv_h2 TO UPPER CASE. CONDENSE lv_h2.
+  TRANSLATE lv_h3 TO UPPER CASE. CONDENSE lv_h3.
+  TRANSLATE lv_h4 TO UPPER CASE. CONDENSE lv_h4.
+
+  " Bandingkan dengan konstanta yang sudah ditetapkan di top
+  IF lv_h1 <> gc_h1 OR lv_h2 <> gc_h2 OR lv_h3 <> gc_h3 OR lv_h4 <> gc_h4.
+    " Build pesan dulu ke variable karena MESSAGE tidak bisa ekspresi multi-baris
+    DATA lv_errmsg TYPE string.
+    lv_errmsg =
+    |Header tidak sesuai! Expected: { gc_h1 } { gc_h2 } { gc_h3 } { gc_h4 } Ditemukan: { lv_h1 } { lv_h2 } { lv_h3 } { lv_h4 } |.
+    MESSAGE lv_errmsg TYPE 'W'.
+    RETURN.  " Hentikan -- tidak perlu parse jika header salah
+  ENDIF.
+
+  " Header valid, lanjutkan ke parsing data
+  PERFORM parse_excel_data USING lt_raw CHANGING ct_upload.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form PARSE_EXCEL_DATA
+*&---------------------------------------------------------------------*
+*& Konversi raw Excel (row/col/value) ke tty_upload.
+*& Logika: kumpulkan cell per baris Excel, setiap ganti baris
+*& panggil validate_and_append_row untuk validasi & append.
+*&  !! CUSTOMIZATION POINT: sesuaikan mapping CASE <raw>-col !!
+*&---------------------------------------------------------------------*
+FORM parse_excel_data USING    it_raw    TYPE STANDARD TABLE
+                      CHANGING ct_upload TYPE tty_upload.
+  DATA ls_upload   TYPE ty_upload.          " Work area untuk satu baris yang sedang diproses
+  DATA lv_prev_row TYPE int2 VALUE 0.       " Nomor baris Excel sebelumnya (untuk deteksi ganti baris)
+  FIELD-SYMBOLS <raw> TYPE alsmex_tabline.  " Pointer ke baris lt_raw saat ini
+
+  LOOP AT it_raw ASSIGNING <raw>.
+    " Skip baris 1 karena itu header yang sudah divalidasi
+    IF <raw>-row = 1. CONTINUE. ENDIF.
+
+    " Deteksi pergantian baris Excel: row berbeda dari sebelumnya
+    IF <raw>-row <> lv_prev_row.
+      " Jika bukan baris pertama data (prev_row > 1), simpan baris sebelumnya dulu
+      IF lv_prev_row > 1.
+        " Validasi + append baris yang sudah terkumpul cell-cell-nya
+        PERFORM validate_and_append_row CHANGING ls_upload ct_upload.
+        CLEAR ls_upload.  " Reset work area untuk baris berikutnya
+      ENDIF.
+      lv_prev_row = <raw>-row.  " Catat nomor baris saat ini
+    ENDIF.
+
+    "MAP KOLOM: sesuaikan nomor kolom di sini
+    " col = nomor kolom Excel (1=A, 2=B, 3=C, 4=D)
+    CASE <raw>-col.
+      WHEN 1. ls_upload-carrid = <raw>-value.
+      WHEN 2. ls_upload-connid = <raw>-value.
+      WHEN 3. ls_upload-fldate = <raw>-value.
+      WHEN 4. ls_upload-zdesc  = <raw>-value.
+    ENDCASE.
+  ENDLOOP.
+
+  " Setelah loop selesai, baris terakhir belum sempat di-append
+  " (karena deteksi ganti baris baru trigger saat row BERIKUTNYA muncul)
+  IF ls_upload-carrid IS NOT INITIAL.
+    PERFORM validate_and_append_row CHANGING ls_upload ct_upload.
+  ENDIF.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form READ_FILE_CSV
+*&---------------------------------------------------------------------*
+*& Baca file CSV baris per baris ke tabel of string,
+*& validasi header, lalu teruskan ke parse_csv_data.
+*&---------------------------------------------------------------------*
+FORM read_file_csv USING    iv_path   TYPE rlgrap-filename
+                   CHANGING ct_upload TYPE tty_upload.
+  CLEAR ct_upload.
+
+  " GUI_UPLOAD tidak support TABLE OF string (deep type),
+  " tapi kode ini menggunakannya -- jika error, ganti ke TABLE OF text1023
+  DATA lt_raw TYPE TABLE OF string.
+
+  CALL FUNCTION 'GUI_UPLOAD'
+    EXPORTING
+      filename        = CONV string( iv_path )  " Konversi rlgrap-filename -> string
+      filetype        = 'ASC'                   " ASC = text file, baca per baris
+    TABLES
+      data_tab        = lt_raw   " Output: setiap baris file = satu entry tabel
+    EXCEPTIONS
+      file_open_error = 1
+      file_read_error = 2
+      OTHERS          = 3.
+
+  IF sy-subrc <> 0.
+    MESSAGE |Gagal membaca CSV (rc={ sy-subrc })| TYPE 'W'.
+    RETURN.
+  ENDIF.
+
+  " Validasi header dari baris pertama
+  DATA lv_first TYPE string.
+  READ TABLE lt_raw INDEX 1 INTO lv_first.  " Baca baris pertama
+  IF sy-subrc = 0.
+    DATA lt_hdr TYPE TABLE OF string.
+    DATA lv_h TYPE string.
+
+    " Pecah baris header dengan delimiter koma
+    SPLIT lv_first AT ',' INTO TABLE lt_hdr.
+
+    DATA: lv_h1 TYPE string, lv_h2 TYPE string,
+          lv_h3 TYPE string, lv_h4 TYPE string.
+    " Baca tiap header dan normalisasi
+    READ TABLE lt_hdr INDEX 1 INTO lv_h1. TRANSLATE lv_h1 TO UPPER CASE. CONDENSE lv_h1.
+    READ TABLE lt_hdr INDEX 2 INTO lv_h2. TRANSLATE lv_h2 TO UPPER CASE. CONDENSE lv_h2.
+    READ TABLE lt_hdr INDEX 3 INTO lv_h3. TRANSLATE lv_h3 TO UPPER CASE. CONDENSE lv_h3.
+    READ TABLE lt_hdr INDEX 4 INTO lv_h4. TRANSLATE lv_h4 TO UPPER CASE. CONDENSE lv_h4.
+
+    IF lv_h1 <> gc_h1 OR lv_h2 <> gc_h2 OR lv_h3 <> gc_h3 OR lv_h4 <> gc_h4.
+      DATA lv_errmsg TYPE string.
+      " && = operator konkatenasi string (berbeda dengan + di bahasa lain)
+      lv_errmsg = |Header tidak sesuai! Expected: { gc_h1 },{ gc_h2 },{ gc_h3 },{ gc_h4 }|
+               && | -- Ditemukan: { lv_h1 },{ lv_h2 },{ lv_h3 },{ lv_h4 }|.
+      MESSAGE lv_errmsg TYPE 'W'.
+      RETURN.
+    ENDIF.
+  ENDIF.
+
+  PERFORM parse_csv_data USING lt_raw CHANGING ct_upload.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form PARSE_CSV_DATA
+*&---------------------------------------------------------------------*
+*& Baca tabel string (hasil GUI_UPLOAD), skip header,
+*& split tiap baris dengan delimiter, lalu validasi & append.
+*&  !! CUSTOMIZATION POINT: delimiter dan mapping index kolom !!
+*&---------------------------------------------------------------------*
+FORM parse_csv_data USING    it_raw    TYPE STANDARD TABLE
+                    CHANGING ct_upload TYPE tty_upload.
+  DATA ls_upload    TYPE ty_upload.
+  DATA lv_line      TYPE string.                " Satu baris CSV
+  DATA lt_fields    TYPE TABLE OF string.       " Hasil split per field
+  " Flag untuk skip baris pertama (header) -- VALUE abap_true = TRUE dari awal
+  DATA lv_is_header TYPE abap_bool VALUE abap_true.
+
+  LOOP AT it_raw INTO lv_line.
+    " Skip baris pertama (header) -- bukan data
+    IF lv_is_header = abap_true.
+      lv_is_header = abap_false.  " Setelah skip sekali, flag off
+      CONTINUE.
+    ENDIF.
+    " Skip baris kosong (bisa ada di akhir file CSV)
+    IF lv_line IS INITIAL. CONTINUE. ENDIF.
+
+    CLEAR: ls_upload, lt_fields.
+
+    " DELIMITER: ganti ',' dengan ';' jika file pakai semicolon
+    SPLIT lv_line AT ',' INTO TABLE lt_fields.
+
+    " MAP KOLOM: sesuaikan index di sini
+    " READ TABLE ... INDEX N = baca field ke-N hasil split
+    " CONDENSE NO-GAPS = hilangkan semua spasi (termasuk di tengah)
+    READ TABLE lt_fields INDEX 1 INTO ls_upload-carrid. CONDENSE ls_upload-carrid NO-GAPS.
+    READ TABLE lt_fields INDEX 2 INTO ls_upload-connid. CONDENSE ls_upload-connid NO-GAPS.
+    READ TABLE lt_fields INDEX 3 INTO ls_upload-fldate. CONDENSE ls_upload-fldate NO-GAPS.
+    READ TABLE lt_fields INDEX 4 INTO ls_upload-zdesc.  CONDENSE ls_upload-zdesc.
+
+    " Hanya append jika kolom pertama (key utama) tidak kosong
+    IF ls_upload-carrid IS NOT INITIAL.
+      PERFORM validate_and_append_row CHANGING ls_upload ct_upload.
+    ENDIF.
+  ENDLOOP.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form VALIDATE_AND_APPEND_ROW
+*&---------------------------------------------------------------------*
+*& Validasi satu baris data sebelum di-append ke ct_upload.
+*& Urutan validasi:
+*&   1. Cek field wajib tidak kosong
+*&   2. Cek duplikat key dalam file yang sama
+*&   3. Jika lolos semua: set status New + ikon ready
+*&
+*& Setiap error: set status Error, isi err_fields & msg, set gv_has_error.
+*& !! CUSTOMIZATION POINT: tambah validasi bisnis di bawah !!
+*&---------------------------------------------------------------------*
+FORM validate_and_append_row CHANGING cs_upload TYPE ty_upload
+                                      ct_upload TYPE tty_upload.
+
+  CLEAR: cs_upload-status, cs_upload-err_fields, cs_upload-msg, cs_upload-icon.
+
+  " Validasi field wajib
+  IF cs_upload-carrid IS INITIAL.
+    cs_upload-status     = gc_error.
+    cs_upload-icon       = gc_icon_error.
+    cs_upload-err_fields = 'CARRID'.               " Field yang bermasalah
+    cs_upload-msg        = '[CARRID] Tidak boleh kosong'.  " Format [FIELD] pesan
+*   gv_has_error         = abap_true.             " Uncomment untuk aktifkan fitur blokir upload
+    APPEND cs_upload TO ct_upload.
+    RETURN.  " Stop validasi, tidak perlu cek sisanya
+  ENDIF.
+
+  IF cs_upload-connid IS INITIAL.
+    cs_upload-status     = gc_error.
+    cs_upload-icon       = gc_icon_error.
+    cs_upload-err_fields = 'CONNID'.
+    cs_upload-msg        = '[CONNID] Tidak boleh kosong'.
+*   gv_has_error         = abap_true.
+    APPEND cs_upload TO ct_upload.
+    RETURN.
+  ENDIF.
+
+  IF cs_upload-fldate IS INITIAL.
+    cs_upload-status     = gc_error.
+    cs_upload-icon       = gc_icon_error.
+    cs_upload-err_fields = 'FLDATE'.
+    cs_upload-msg        = '[FLDATE] Tidak boleh kosong'.
+*   gv_has_error         = abap_true.
+    APPEND cs_upload TO ct_upload.
+    RETURN.
+  ENDIF.
+
+  " Cek duplikat dalam file
+  " TRANSPORTING NO FIELDS = hanya cek keberadaan, tidak perlu salin data
+  READ TABLE ct_upload TRANSPORTING NO FIELDS
+    WITH KEY carrid = cs_upload-carrid
+             connid = cs_upload-connid
+             fldate = cs_upload-fldate.
+  IF sy-subrc = 0.
+    cs_upload-status     = gc_error.
+    cs_upload-icon       = gc_icon_error.
+    cs_upload-err_fields = 'CARRID,CONNID,FLDATE'.  " Semua key terlibat
+    cs_upload-msg        = '[CARRID+CONNID+FLDATE] Duplikat dalam file'.
+*   gv_has_error         = abap_true.
+    APPEND cs_upload TO ct_upload.
+    RETURN.
+  ENDIF.
+
+  " Lolos semua validasi
+  cs_upload-status = gc_new.
+  cs_upload-icon   = gc_icon_ready.  " Ikon centang hijau
+  cs_upload-msg    = 'Data valid, siap diupload'.
+  APPEND cs_upload TO ct_upload.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form CHECK_EXISTING
+*&---------------------------------------------------------------------*
+*& Cek setiap baris (yang bukan error) apakah key-nya sudah ada di DB.
+*& Jika ada: set status 'Exists', nonaktifkan checkbox (sel = '').
+*& Dipanggil setelah parse selesai, sebelum tampilkan ALV.
+*&  !! CUSTOMIZATION POINT: sesuaikan tabel dan key field !!
+*&---------------------------------------------------------------------*
+FORM check_existing CHANGING ct_upload TYPE tty_upload.
+  " FIELD-SYMBOLS = pointer ke baris tabel -- perubahan langsung ke tabel
+  " (berbeda dengan READ TABLE INTO ls yang membuat copy)
+  FIELD-SYMBOLS <ls> TYPE ty_upload.
+
+  LOOP AT ct_upload ASSIGNING <ls>.
+    " Skip baris yang sudah error dari validasi -- tidak perlu cek DB
+    IF <ls>-status = gc_error. CONTINUE. ENDIF.
+
+    SELECT SINGLE carrid FROM zsflight INTO @DATA(lv_dummy)
+      WHERE carrid = @<ls>-carrid
+        AND connid = @<ls>-connid
+        AND fldate = @<ls>-fldate.
+
+    IF sy-subrc = 0.
+      <ls>-status     = gc_exists.
+      <ls>-icon       = gc_icon_error.                  " Ikon merah -- tidak bisa dipilih
+      <ls>-err_fields = 'CARRID,CONNID,FLDATE'.
+      <ls>-msg        = 'Data sudah ada di database'.
+      <ls>-sel        = ''.                             " Pastikan checkbox tidak tercentang
+    ENDIF.
+  ENDLOOP.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form UPDATE_TO_DB
+*&---------------------------------------------------------------------*
+*& Proses upload baris tercentang (sel = 'X') ke database.
+*& MODIFY = INSERT jika record belum ada, UPDATE jika sudah ada.
+*& Update status & icon tiap baris sesuai hasil, lalu commit/rollback.
+*&  !! CUSTOMIZATION POINT: tabel target, field yang di-MODIFY !!
+*&---------------------------------------------------------------------*
+FORM update_to_db CHANGING ct_upload TYPE tty_upload.
+  DATA ls_zsflight TYPE zsflight.  " Work area untuk struktur DB
+  DATA lv_ok       TYPE i VALUE 0. " Counter baris berhasil
+  DATA lv_err      TYPE i VALUE 0. " Counter baris gagal
+
+  " hanya proses baris yang dicentang user
+  LOOP AT ct_upload ASSIGNING FIELD-SYMBOL(<ls>) WHERE sel = 'X'.
+    CLEAR ls_zsflight.
+    ls_zsflight-carrid = <ls>-carrid.
+    ls_zsflight-connid = <ls>-connid.
+    ls_zsflight-fldate = <ls>-fldate.
+    ls_zsflight-zdesc  = <ls>-zdesc.
+
+    MODIFY zsflight FROM ls_zsflight.
+
+    IF sy-subrc = 0.
+      <ls>-status     = gc_updated.
+      <ls>-icon       = gc_icon_uploaded.       " Ikon upload
+      <ls>-msg        = 'Berhasil disimpan'.
+      <ls>-err_fields = ''.                     " Hapus info error karena sudah sukses
+      <ls>-sel        = ''.                     " Uncheck -- sudah tidak perlu dipilih lagi
+      ADD 1 TO lv_ok.
+    ELSE.              " Gagal
+      <ls>-status     = gc_error.
+      <ls>-icon       = gc_icon_error.
+      <ls>-err_fields = 'DB Error'.
+      " Sertakan sy-subrc untuk membantu debugging
+      <ls>-msg        = |[DB] Error sy-subrc={ sy-subrc }|.
+      gv_has_error    = abap_true.  " Set flag -- ada error baru
+      ADD 1 TO lv_err.
+    ENDIF.
+  ENDLOOP.
+
+  " Commit atau Rollback
+  IF lv_ok > 0.
+    " COMMIT WORK AND WAIT: simpan semua perubahan DB secara permanen.
+    " AND WAIT = tunggu sampai commit benar-benar selesai sebelum lanjut
+    COMMIT WORK AND WAIT.
+    DATA lv_msg TYPE string.
+    lv_msg = |{ lv_ok } baris berhasil disimpan|.
+    IF lv_err > 0.
+      " Tambahkan info error jika ada partial failure
+      lv_msg = lv_msg && |, { lv_err } baris gagal (lihat kolom Message)|.
+    ENDIF.
+    " TYPE 'S' = success message -- tampil di status bar bawah, tidak blocking
+    MESSAGE lv_msg TYPE 'S'.
+  ELSE.
+    " Tidak ada yang berhasil -- batalkan semua perubahan DB
+    ROLLBACK WORK.
+    MESSAGE |Semua { lv_err } baris gagal| TYPE 'W'.
+  ENDIF.
+ENDFORM.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740

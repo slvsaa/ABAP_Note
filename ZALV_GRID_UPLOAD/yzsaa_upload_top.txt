@@ -1,0 +1,66 @@
+*&---------------------------------------------------------------------*
+*& Include  YZSAA_UPLOAD_TOP
+*&---------------------------------------------------------------------*
+
+*----------------------------------------------------------------------*
+* T Y P E S
+*----------------------------------------------------------------------*
+TYPES: BEGIN OF ty_upload,
+         sel        TYPE char1,              " Flag checkbox: 'X' = dipilih user untuk disimpan
+         icon       TYPE icon_d,             " Kode ikon SAP (char4)
+         carrid     TYPE zsflight-carrid,    " Key field 1 -- referensi langsung ke DDIC tabel
+         connid     TYPE zsflight-connid,    " Key field 2
+         fldate     TYPE zsflight-fldate,    " Key field 3
+         zdesc      TYPE zsflight-zdesc,     " Data field (bukan key) -- boleh diupdate
+         status     TYPE char15,             " Status baris: New / Exists / Updated / Error
+         err_fields TYPE char50,             " Nama field yang bermasalah, contoh: 'CARRID,FLDATE'
+         msg        TYPE char100,            " Pesan detail error atau konfirmasi per baris
+       END OF ty_upload.
+
+" Tipe tabel dari struktur di atas -- dipakai di seluruh program
+TYPES: tty_upload TYPE TABLE OF ty_upload.
+
+*----------------------------------------------------------------------*
+* C O N S T A N T S
+*----------------------------------------------------------------------*
+
+" Nilai untuk field STATUS -- menggambarkan kondisi tiap baris
+CONSTANTS: gc_new     TYPE char15 VALUE 'New',      " Baris baru dari file, belum ada di DB
+           gc_exists  TYPE char15 VALUE 'Exists',   " Key sudah ada di DB, tidak bisa dipilih
+           gc_updated TYPE char15 VALUE 'Updated',  " Berhasil disimpan ke DB
+           gc_error   TYPE char15 VALUE 'Error'.    " Gagal validasi atau gagal DB
+
+" Function code tombol toolbar 'Update to DB' di PF-STATUS 'ZSTANDARD'
+CONSTANTS: gc_btn_update TYPE salv_de_function VALUE '&ZSAVE'.
+
+" Kode ikon SAP -- format '@XX@' di mana XX = kode heks ikon -- tabel ICON untuk daftar lengkap kode ikon
+CONSTANTS: gc_icon_error    TYPE icon_d VALUE '@0A@',  " ICON_RED_LIGHT (error/tidak bisa dipilih)
+           gc_icon_ready    TYPE icon_d VALUE '@09@',  " ICON_YELLOW_LIGHT (data valid, siap upload)
+           gc_icon_uploaded TYPE icon_d VALUE '@08@'.  " ICON_GREEN_LIGHT(berhasil disimpan ke DB)
+
+" Nama header kolom yang WAJIB ada di baris pertama file Excel/CSV.
+CONSTANTS: gc_h1 TYPE c LENGTH 10 VALUE 'CARRID',
+           gc_h2 TYPE c LENGTH 10 VALUE 'CONNID',
+           gc_h3 TYPE c LENGTH 10 VALUE 'FLDATE',
+           gc_h4 TYPE c LENGTH 10 VALUE 'ZDESC'.
+
+*----------------------------------------------------------------------*
+* I N T E R N A L   T A B L E S   &   W O R K I N G - A R E A S
+*----------------------------------------------------------------------*
+
+INTERFACE zif_alv_display DEFERRED.               " Deklarasi interface diawal (DEFERRED) karena class lcl_alv_display
+
+DATA: gt_upload    TYPE tty_upload,               " Tabel global hasil baca file -- dipakai di seluruh program
+      go_display   TYPE REF TO zif_alv_display,   " Object reference ke ALV grid yang aktif
+      gv_has_error TYPE abap_bool.                " Flag: ABAP_TRUE jika minimal ada 1 baris error
+                                                  " Dipakai di do_update_db untuk cegah upload
+
+*----------------------------------------------------------------------*
+* S E L E C T I O N - S C R E E N
+*----------------------------------------------------------------------*
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+PARAMETERS: p_file TYPE rlgrap-filename OBLIGATORY.
+SELECTION-SCREEN END OF BLOCK b1.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740

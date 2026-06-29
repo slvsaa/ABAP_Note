@@ -1,0 +1,57 @@
+*&---------------------------------------------------------------------*
+*& Include  YZSAA_UPLOAD_I01
+*& Tujuan : Event handling -- INITIALIZATION, F4, Selection Screen, Execution
+*&---------------------------------------------------------------------*
+
+*----------------------------------------------------------------------*
+* I N I T I A L I Z A T I O N
+*----------------------------------------------------------------------*
+INITIALIZATION.
+
+*----------------------------------------------------------------------*
+* F4   H E L P  --  File browser untuk p_file
+*----------------------------------------------------------------------*
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_file.
+  DATA: lt_file_table  TYPE filetable,   " Tabel hasil pilihan file (bisa multi-select)
+        lv_rc          TYPE i,           " Return code: >0 = ada file dipilih, 0 = cancel, -1 = error
+        lv_user_action TYPE i.           " Action user: konstanta ACTION_OK atau ACTION_CANCEL
+
+  CALL METHOD cl_gui_frontend_services=>file_open_dialog
+    EXPORTING
+      window_title            = 'Pilih File Upload'
+      default_extension       = 'xls'
+      " Filter format file yang bisa dipilih -- format: 'Nama|*.ext|'
+      file_filter             = 'Excel (*.xls)|*.xls|CSV (*.csv)|*.csv|'
+    CHANGING
+      file_table              = lt_file_table  " Output: tabel path file yang dipilih
+      rc                      = lv_rc
+      user_action             = lv_user_action
+    EXCEPTIONS
+      file_open_dialog_failed = 1
+      cntl_error              = 2
+      error_no_gui            = 3
+      not_supported_by_gui    = 4
+      OTHERS                  = 5.
+
+  " Hanya isi p_file jika user memilih file (rc > 0 = jumlah file dipilih)
+  IF sy-subrc = 0 AND lv_rc > 0.
+    " Ambil file pertama dari tabel hasil pilihan
+    " (karena multiselection tidak diaktifkan, pasti hanya 1 file)
+    READ TABLE lt_file_table INDEX 1 INTO p_file.
+  ENDIF.
+
+*----------------------------------------------------------------------*
+* A T   S E L E C T I O N - S C R E E N
+*----------------------------------------------------------------------*
+AT SELECTION-SCREEN.
+
+*----------------------------------------------------------------------*
+* S T A R T  O F  S E L E C T I O N
+*----------------------------------------------------------------------*
+START-OF-SELECTION.
+  PERFORM validate_and_preview.
+
+END-OF-SELECTION.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740

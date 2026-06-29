@@ -1,0 +1,323 @@
+*&---------------------------------------------------------------------*
+*& Include  YZSAA_UPLOAD_CLS
+*& Tujuan : Definisi dan implementasi semua class OOP
+*&---------------------------------------------------------------------*
+
+*----------------------------------------------------------------------*
+*  I N T E R F A C E
+*----------------------------------------------------------------------*
+INTERFACE zif_alv_display.
+  METHODS:
+    display,                                        " Tampilkan ALV ke layar
+    refresh,                                        " Refresh tampilan setelah ada perubahan data
+    set_title  IMPORTING iv_title TYPE string,      " Set judul di header ALV
+    load_data  IMPORTING it_data  TYPE tty_upload.  " Salin data dari luar ke internal class
+ENDINTERFACE.
+
+*----------------------------------------------------------------------*
+*  A B S T R A C T   C L A S S
+*----------------------------------------------------------------------*
+CLASS lcl_alv_display DEFINITION ABSTRACT.
+  PUBLIC SECTION.
+    INTERFACES zif_alv_display.         " Class ini memenuhi kontrak interface
+
+    " ALIASES: nama pendek agar bisa dipanggil tanpa prefix 'zif_alv_display~'
+    ALIASES:
+      display   FOR zif_alv_display~display,
+      refresh   FOR zif_alv_display~refresh,
+      set_title FOR zif_alv_display~set_title,
+      load_data FOR zif_alv_display~load_data.
+
+  PROTECTED SECTION.
+    DATA: mt_data TYPE tty_upload.  " Tabel data internal yang ditampilkan ALV
+ENDCLASS.
+
+CLASS lcl_alv_display IMPLEMENTATION.
+  METHOD zif_alv_display~load_data.
+    mt_data = it_data.
+  ENDMETHOD.
+
+  METHOD zif_alv_display~display.   ENDMETHOD.
+  METHOD zif_alv_display~refresh.   ENDMETHOD.
+  METHOD zif_alv_display~set_title. ENDMETHOD.
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*  F O R W A R D   D E C L A R A T I O N
+*----------------------------------------------------------------------*
+CLASS lcl_alv_upload_grid DEFINITION DEFERRED.
+
+*----------------------------------------------------------------------*
+*  E V E N T   H A N D L E R
+*  Class khusus untuk menangani event dari ALV (klik checkbox, klik toolbar).
+*  Dipisah dari grid class agar tanggung jawab lebih jelas:
+*  - lcl_event_handler : "mendengar" event dari ALV
+*  - lcl_alv_upload_grid : mengeksekusi logika bisnis
+*----------------------------------------------------------------------*
+CLASS lcl_event_handler DEFINITION FINAL.
+  PUBLIC SECTION.
+    " Referensi ke grid -- dipakai untuk meneruskan event ke method grid
+    DATA: mo_grid TYPE REF TO lcl_alv_upload_grid.
+    METHODS:
+      " Dipanggil SAP otomatis saat user klik tombol custom di toolbar
+      " e_salv_function = function code tombol yang diklik (contoh: '&ZSAVE')
+      on_added_function
+                    FOR EVENT added_function OF cl_salv_events
+        IMPORTING e_salv_function,
+
+      " Dipanggil SAP otomatis saat user klik kolom bertipe checkbox_hotspot
+      " row = nomor baris yang diklik, column = nama field kolom yang diklik
+      on_link_click
+                    FOR EVENT link_click OF cl_salv_events_table
+        IMPORTING row column.
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*  H E L P E R : build SALV dengan setting standard
+*  CLASS-METHOD (static) -- bisa dipanggil tanpa instantiate class dulu.
+*  Memisahkan setup teknis SALV dari class bisnis agar kode lebih rapi.
+*----------------------------------------------------------------------*
+CLASS lcl_salv_helper DEFINITION FINAL.
+  PUBLIC SECTION.
+    CLASS-METHODS build
+      IMPORTING iv_title       TYPE string
+      CHANGING  ct_data        TYPE tty_upload
+      RETURNING VALUE(ro_salv) TYPE REF TO cl_salv_table.
+ENDCLASS.
+
+CLASS lcl_salv_helper IMPLEMENTATION.
+  METHOD build.
+    TRY.
+        cl_salv_table=>factory(                 "membuat object SALV dari tabel data.
+          IMPORTING r_salv_table = ro_salv
+          CHANGING  t_table      = ct_data ).
+      CATCH cx_salv_error INTO DATA(lx).
+        MESSAGE |Error inisialisasi ALV: { lx->get_text( ) }| TYPE 'E'.
+        RETURN.
+    ENDTRY.
+
+    " Konfigurasi tampilan
+    DATA lo_disp TYPE REF TO cl_salv_display_settings.
+    lo_disp = ro_salv->get_display_settings( ).
+    lo_disp->set_list_header( CONV char70( iv_title ) ).                    "Set Judul ALV
+    lo_disp->set_striped_pattern( cl_salv_display_settings=>true ).         "Set row pattern
+
+*    ro_salv->get_columns( )->set_optimize( abap_true ).                     "lebar kolom otomatis menyesuaikan panjang isi data
+
+    "Konfigurasi kolom
+    DATA: BEGIN OF ls_col,
+            fname TYPE fieldname,  " Nama field di struktur ty_upload
+            mtext TYPE scrtext_m,  " Label yang tampil di header kolom ALV (max 20 char)
+            width TYPE lvc_outlen,          " Lebar kolom
+          END OF ls_col.
+    DATA lt_cols LIKE TABLE OF ls_col.
+
+    lt_cols = VALUE #(
+      ( fname = 'SEL'        mtext = 'Sel'          width = 3  )
+      ( fname = 'ICON'       mtext = 'Status'       width = 5  )
+      ( fname = 'CARRID'     mtext = 'Airline'      width = 8  )
+      ( fname = 'CONNID'     mtext = 'Conn No'      width = 8  )
+      ( fname = 'FLDATE'     mtext = 'Date'         width = 10 )
+      ( fname = 'ZDESC'      mtext = 'Description'  width = 30 )
+      ( fname = 'STATUS'     mtext = 'Status'       width = 10 )
+      ( fname = 'ERR_FIELDS' mtext = 'Error Fields' width = 20 )
+      ( fname = 'MSG'        mtext = 'Message'      width = 40 )
+    ).
+
+    DATA lo_col TYPE REF TO cl_salv_column_table.                           "Lihat opsi lainnya CL_SALV_COLUMN
+    TRY.
+        LOOP AT lt_cols INTO ls_col.
+          lo_col ?= ro_salv->get_columns( )->get_column( ls_col-fname ).    " get kolom
+          lo_col->set_medium_text( ls_col-mtext ).                          " set label kolom
+          lo_col->set_output_length( ls_col-width ).                        " set length kolom
+        ENDLOOP.
+      CATCH cx_salv_not_found.  " Abaikan jika field tidak ada di struktur
+                                                        "#EC NO_HANDLER
+    ENDTRY.
+
+    " set_icon( true ) memberitahu SALV bahwa isi kolom ICON adalah kode ikon SAP
+    TRY.
+        lo_col ?= ro_salv->get_columns( )->get_column( 'ICON' ).
+        lo_col->set_icon( if_salv_c_bool_sap=>true ).
+      CATCH cx_salv_not_found.                          "#EC NO_HANDLER
+    ENDTRY.
+
+    " checkbox_hotspot: kolom SEL ditampilkan sebagai checkbox yang BISA diklik.
+    " Klik akan men-trigger event link_click yang ditangani on_link_click.
+    TRY.
+        lo_col ?= ro_salv->get_columns( )->get_column( 'SEL' ).
+        lo_col->set_cell_type( if_salv_c_cell_type=>checkbox_hotspot ).
+      CATCH cx_salv_not_found.                          "#EC NO_HANDLER
+    ENDTRY.
+
+    " Nonaktifkan row selection standar SALV (klik baris = highlight baris). karena sudah ada checkbox
+    ro_salv->get_selections( )->set_selection_mode(
+      if_salv_c_selection_mode=>none ).
+  ENDMETHOD.
+ENDCLASS.
+
+*======================================================================*
+*  G R I D   U P L O A D
+*======================================================================*
+CLASS lcl_alv_upload_grid DEFINITION INHERITING FROM lcl_alv_display.
+  PUBLIC SECTION.
+    METHODS:
+      constructor,                                      " Inisialisasi object saat NEW
+      zif_alv_display~display   REDEFINITION,           " Override: tampilkan SALV
+      zif_alv_display~refresh   REDEFINITION,           " Override: refresh SALV
+      zif_alv_display~set_title REDEFINITION,           " Override: simpan judul
+      do_update_db,                                     " Proses upload baris tercentang ke DB
+      do_toggle_sel IMPORTING iv_row TYPE i.            " Toggle checkbox baris ke-iv_row
+  PRIVATE SECTION.
+    DATA: mo_salv    TYPE REF TO cl_salv_table,         " Object SALV yang aktif
+          mo_handler TYPE REF TO lcl_event_handler,     " Object event handler
+          mv_title   TYPE string.                       " Judul ALV (disimpan untuk display)
+    METHODS:
+      register_events,   " Daftarkan event handler ke SALV
+      setup_toolbar.     " Konfigurasi tombol toolbar
+ENDCLASS.
+
+CLASS lcl_alv_upload_grid IMPLEMENTATION.
+  METHOD constructor.
+    " super->constructor() wajib dipanggil pertama -- menginisialisasi parent class
+    super->constructor( ).
+    " Buat object event handler baru
+    mo_handler          = NEW lcl_event_handler( ).
+    " Beritahu handler bahwa grid-nya adalah object ini (me = this)
+    " agar handler bisa memanggil do_toggle_sel / do_update_db
+    mo_handler->mo_grid = me.
+  ENDMETHOD.
+
+  METHOD zif_alv_display~set_title.
+    " Simpan judul ke atribut -- akan dipakai saat display() dipanggil
+    mv_title = iv_title.
+  ENDMETHOD.
+
+  METHOD zif_alv_display~display.
+    " Build SALV dari data dan judul, simpan ke mo_salv
+    mo_salv = lcl_salv_helper=>build(
+      EXPORTING iv_title = mv_title
+      CHANGING  ct_data  = mt_data ).   " mt_data = tabel data dari load_data()
+    IF mo_salv IS BOUND.
+      setup_toolbar( ).    " Konfigurasi tombol toolbar dulu
+      register_events( ).  " Daftarkan event handler
+      mo_salv->display( ). " Tampilkan ALV ke layar (blocking -- program berhenti di sini
+      " sampai user kembali/exit dari ALV)
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD zif_alv_display~refresh.
+    " IS BOUND: cek apakah mo_salv sudah diinisialisasi (tidak awal/null)
+    " Refresh ulang tampilan ALV setelah data berubah (contoh: setelah save)
+    IF mo_salv IS BOUND.
+      mo_salv->refresh( ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD setup_toolbar.
+    DATA lo_funcs TYPE REF TO cl_salv_functions_list.
+    lo_funcs = mo_salv->get_functions( ).
+    " set_all( true ) = aktifkan semua fungsi standar SALV
+    " (sort, filter, export Excel, layout, dll)
+    lo_funcs->set_all( abap_true ).
+
+    " set_screen_status: ganti toolbar standar SALV dengan PF-STATUS custom.
+    " 'ZSTANDARD' = nama GUI Status yang dibuat di SE38 program ini.
+    " c_functions_all = tetap aktifkan semua fungsi standar SALV di status ini.
+    TRY.
+        mo_salv->set_screen_status(
+          pfstatus      = 'ZSTANDARD'
+          report        = sy-repid          " Nama program saat ini
+          set_functions = mo_salv->c_functions_all ).
+      CATCH cx_salv_wrong_call.                         "#EC NO_HANDLER
+    ENDTRY.
+  ENDMETHOD.
+
+  METHOD register_events.
+    " Downcast ke cl_salv_events_table (subclass dari cl_salv_events)
+    " karena event link_click hanya ada di cl_salv_events_table, bukan parent-nya.
+    " Operator ?= = downcast (akan runtime error jika tipe tidak cocok)
+    DATA lo_events TYPE REF TO cl_salv_events_table.
+    lo_events ?= mo_salv->get_event( ).
+    " Daftarkan handler untuk event
+    SET HANDLER mo_handler->on_added_function FOR lo_events.
+    SET HANDLER mo_handler->on_link_click     FOR lo_events.
+  ENDMETHOD.
+
+  "*--------------------------------------------------------------------*
+*  D O _ T O G G L E _ S E L
+*  Dipanggil oleh on_link_click saat user klik kolom SEL.
+*  Cek status baris dulu -- hanya baris 'New' yang boleh dicentang.
+*--------------------------------------------------------------------*
+  METHOD do_toggle_sel.
+    DATA ls_row TYPE ty_upload.
+    " Ambil data baris ke-iv_row dari mt_data
+    READ TABLE mt_data INTO ls_row INDEX iv_row.
+    " sy-subrc = 0 artinya baris ditemukan; <> 0 = index di luar range
+    IF sy-subrc <> 0. RETURN. ENDIF.
+
+    " Blokir pemilihan berdasarkan status baris
+    CASE ls_row-status.
+      WHEN gc_updated.  " Sudah tersimpan, tidak perlu disimpan lagi
+        MESSAGE 'Baris ini sudah tersimpan ke database' TYPE 'W'.
+        RETURN.
+      WHEN gc_exists.   " Key sudah ada di DB
+        MESSAGE 'Data ini sudah ada di database, tidak perlu disimpan ulang' TYPE 'W'.
+        RETURN.
+      WHEN gc_error.    " Baris punya error validasi
+        MESSAGE 'Baris ini memiliki error, tidak bisa dipilih' TYPE 'W'.
+        RETURN.
+    ENDCASE.
+
+    " Toggle: jika sudah 'X' jadikan kosong, jika kosong jadikan 'X'
+    ls_row-sel = COND #( WHEN ls_row-sel = 'X' THEN '' ELSE 'X' ).
+    " Update baris ke-iv_row di mt_data dengan data yang sudah diubah
+    MODIFY mt_data FROM ls_row INDEX iv_row.
+    " Sync ke gt_upload (global) agar perubahan tidak hilang
+    gt_upload = mt_data.
+    refresh( ).  " Refresh tampilan agar checkbox langsung update di layar
+  ENDMETHOD.
+
+  "*--------------------------------------------------------------------*
+*  D O _ U P D A T E _ D B
+*  Dipanggil oleh on_added_function saat user klik tombol 'Update to DB'.
+*--------------------------------------------------------------------*
+  METHOD do_update_db.
+    " Cek ada minimal satu baris yang dicentang (sel = 'X')
+    " TRANSPORTING NO FIELDS = hanya cek keberadaan, tidak perlu salin datanya
+    READ TABLE mt_data TRANSPORTING NO FIELDS WITH KEY sel = 'X'.
+    IF sy-subrc <> 0.
+      MESSAGE 'Centang minimal satu baris terlebih dahulu' TYPE 'W'.
+      RETURN.
+    ENDIF.
+
+    PERFORM update_to_db CHANGING mt_data.
+    gt_upload = mt_data.
+    refresh( ).  " Refresh ALV -- icon dan status akan berubah sesuai hasil DB
+  ENDMETHOD.
+ENDCLASS.
+
+*----------------------------------------------------------------------*
+*  E V E N T   H A N D L E R   I M P L E M E N T A T I O N
+*----------------------------------------------------------------------*
+CLASS lcl_event_handler IMPLEMENTATION.
+  METHOD on_added_function.
+    " e_salv_function = function code tombol yang diklik di toolbar
+    CASE e_salv_function.
+      WHEN gc_btn_update.  " Tombol 'Update to DB' (function code '&ZSAVE')
+        mo_grid->do_update_db( ).  " Delegasi ke method grid
+    ENDCASE.
+  ENDMETHOD.
+
+  METHOD on_link_click.
+    " Hanya proses klik di kolom SEL (checkbox)
+    " Kolom lain yang juga hotspot (jika ada) akan diabaikan
+    IF column = 'SEL'.
+      " Teruskan nomor baris yang diklik ke do_toggle_sel
+      mo_grid->do_toggle_sel( iv_row = row ).
+    ENDIF.
+  ENDMETHOD.
+ENDCLASS.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740
