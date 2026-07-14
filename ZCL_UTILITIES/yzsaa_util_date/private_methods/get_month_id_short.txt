@@ -1,0 +1,18 @@
+**************************************************************************
+*   Method attributes.                                                   *
+**************************************************************************
+Instantiation: Private
+**************************************************************************
+
+  METHOD get_month_id_short.
+    DATA lt_bulan TYPE TABLE OF string WITH EMPTY KEY.
+    lt_bulan = VALUE #(
+      ( |Jan| ) ( |Feb| ) ( |Mar| ) ( |Apr| )
+      ( |Mei| ) ( |Jun| ) ( |Jul| ) ( |Agu| )
+      ( |Sep| ) ( |Okt| ) ( |Nov| ) ( |Des| )
+    ).
+    READ TABLE lt_bulan INDEX iv_month INTO rv_name.
+  ENDMETHOD.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740

@@ -1,0 +1,18 @@
+**************************************************************************
+*   Method attributes.                                                   *
+**************************************************************************
+Instantiation: Private
+**************************************************************************
+
+  METHOD get_month_en_short.
+    DATA lt_months TYPE TABLE OF string WITH EMPTY KEY.
+    lt_months = VALUE #(
+      ( |Jan| ) ( |Feb| ) ( |Mar| ) ( |Apr| )
+      ( |May| ) ( |Jun| ) ( |Jul| ) ( |Aug| )
+      ( |Sep| ) ( |Oct| ) ( |Nov| ) ( |Dec| )
+    ).
+    READ TABLE lt_months INDEX iv_month INTO rv_return.
+  ENDMETHOD.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740

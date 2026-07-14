@@ -1,0 +1,30 @@
+**************************************************************************
+*   Method attributes.                                                   *
+**************************************************************************
+Instantiation: Private
+**************************************************************************
+
+  method GET_DAY_ID.
+    " DATE_COMPUTE_DAY: mengembalikan 1=Senin ... 7=Minggu
+    DATA lv_day_str TYPE char1.
+    DATA lv_day_num TYPE i.
+
+    CALL FUNCTION 'DATE_COMPUTE_DAY'
+      EXPORTING
+        date = iv_date
+      IMPORTING
+        day  = lv_day_str.
+
+    lv_day_num = lv_day_str.
+
+    DATA lt_hari TYPE TABLE OF string WITH EMPTY KEY.
+    lt_hari = VALUE #(
+      ( |Senin| ) ( |Selasa| ) ( |Rabu|  ) ( |Kamis| )
+      ( |Jumat| ) ( |Sabtu|  ) ( |Minggu| )
+    ).
+
+    READ TABLE lt_hari INDEX lv_day_num INTO rv_name.
+  endmethod.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740

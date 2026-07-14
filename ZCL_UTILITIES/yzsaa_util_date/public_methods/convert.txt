@@ -1,0 +1,129 @@
+**************************************************************************
+*   Method attributes.                                                   *
+**************************************************************************
+Instantiation: Public
+**************************************************************************
+
+  METHOD convert.
+**********************************************************************
+***** F O R M A T  C O N V E R T *************************************
+**********************************************************************
+*" [ Format ID ]
+*   c_id_dot        : 03.12.2026
+*   c_id_slash      : 03/12/2026
+*   c_id_dash       : 03-12-2026
+*   c_id_short      : 3 Des 2026
+*   c_id_long       : 3 Desember 2026
+*   c_id_full       : Kamis, 3 Desember 2026
+*
+*" [ Format EN ]
+*   c_en_slash      : 12/03/2026
+*   c_en_dash       : 12-03-2026
+*   c_en_short      : Dec 3, 2026
+*   c_en_long       : December 3, 2026
+*   c_en_ord_short  : Dec 3rd, 2026
+*   c_en_ord_long   : December 3rd, 2026
+*   c_en_full       : Thursday, December 3, 2026
+*
+**********************************************************************
+
+    " Tanggal kosong atau tidak valid # raise exception
+    IF iv_date IS INITIAL OR iv_date = '00000000'.
+      RAISE EXCEPTION TYPE ycx_saautil_error
+        EXPORTING
+          mv_source  = 'UTIL_DATE'
+          mv_message = 'Tanggal tidak valid atau kosong'.
+    ENDIF.
+
+    " Ekstrak komponen dari SAP date (YYYYMMDD)
+    DATA: lv_year  TYPE i,
+          lv_month TYPE i,
+          lv_day   TYPE i.
+
+    lv_year  = iv_date(4).
+    lv_month = iv_date+4(2).
+    lv_day   = iv_date+6(2).
+
+    " Versi dengan leading zero (untuk format numerik: DD, MM)
+    DATA: lv_dd   TYPE string,
+          lv_mm   TYPE string,
+          lv_yyyy TYPE string.
+
+    lv_dd   = |{ lv_day   WIDTH = 2 ALIGN = RIGHT PAD = '0' }|.
+    lv_mm   = |{ lv_month WIDTH = 2 ALIGN = RIGHT PAD = '0' }|.
+    lv_yyyy = |{ lv_year }|.
+
+    " Versi tanpa leading zero (untuk format teks: "5 Mei" bukan "05 Mei")
+    DATA lv_d TYPE string.
+    lv_d = |{ lv_day }|.
+
+    " Pilih format output
+    CASE iv_format.
+
+        " ID Numerik
+      WHEN c_id_dot.   rv_result = |{ lv_dd }.{ lv_mm }.{ lv_yyyy }|.
+      WHEN c_id_slash. rv_result = |{ lv_dd }/{ lv_mm }/{ lv_yyyy }|.
+      WHEN c_id_dash.  rv_result = |{ lv_dd }-{ lv_mm }-{ lv_yyyy }|.
+
+        " ID Teks
+      WHEN c_id_short.
+        " Contoh: 25 Des 2026
+        DATA(lv_mon_id_s) = get_month_id_short( iv_month = lv_month ).
+        rv_result = |{ lv_d } { lv_mon_id_s } { lv_yyyy }|.
+
+      WHEN c_id_long.
+        " Contoh: 25 Desember 2026
+        DATA(lv_mon_id_l) = get_month_id_long( iv_month = lv_month ).
+        rv_result = |{ lv_d } { lv_mon_id_l } { lv_yyyy }|.
+
+      WHEN c_id_full.
+        " Contoh: Kamis, 25 Desember 2026
+        DATA(lv_day_id)   = get_day_id( iv_date = iv_date ).
+        DATA(lv_mon_id_f) = get_month_id_long( iv_month = lv_month ).
+        rv_result = |{ lv_day_id }, { lv_d } { lv_mon_id_f } { lv_yyyy }|.
+
+        " EN Numerik
+      WHEN c_en_slash. rv_result = |{ lv_mm }/{ lv_dd }/{ lv_yyyy }|.
+      WHEN c_en_dash.  rv_result = |{ lv_mm }-{ lv_dd }-{ lv_yyyy }|.
+
+        " EN Teks
+      WHEN c_en_short.
+        " Contoh: Dec 25, 2026
+        DATA(lv_mon_en_s) = get_month_en_short( iv_month = lv_month ).
+        rv_result = |{ lv_mon_en_s } { lv_d }, { lv_yyyy }|.
+
+      WHEN c_en_long.
+        " Contoh: December 25, 2026
+        DATA(lv_mon_en_l) = get_month_en_long( iv_month = lv_month ).
+        rv_result = |{ lv_mon_en_l } { lv_d }, { lv_yyyy }|.
+
+      WHEN c_en_ord_long.
+        " Contoh: December 25th, 2026
+        DATA(lv_suffix)   = get_ordinal_suffix( iv_day = lv_day ).
+        DATA(lv_mon_ord)  = get_month_en_long( iv_month = lv_month ).
+        rv_result = |{ lv_mon_ord } { lv_d }{ lv_suffix }, { lv_yyyy }|.
+
+      WHEN c_en_ord_short.
+        " Contoh: Dec 25th, 2026
+        DATA(lv_suffix2)      = get_ordinal_suffix( iv_day = lv_day ).
+        DATA(lv_mon_ord_s)    = get_month_en_short( iv_month = lv_month ).
+        rv_result = |{ lv_mon_ord_s } { lv_d }{ lv_suffix2 }, { lv_yyyy }|.
+
+      WHEN c_en_full.
+        " Contoh: Friday, December 25, 2026
+        DATA(lv_day_en)   = get_day_en( iv_date = iv_date ).
+        DATA(lv_mon_en_f) = get_month_en_long( iv_month = lv_month ).
+        rv_result = |{ lv_day_en }, { lv_mon_en_f } { lv_d }, { lv_yyyy }|.
+
+      WHEN OTHERS.
+        " Format tidak dikenal # raise exception
+        RAISE EXCEPTION TYPE ycx_saautil_error
+          EXPORTING
+            mv_source  = 'UTIL_DATE'
+            mv_message = |Format '{ iv_format }' tidak dikenal|.
+
+    ENDCASE.
+  ENDMETHOD.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740

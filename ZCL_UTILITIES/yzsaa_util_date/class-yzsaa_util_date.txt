@@ -1,0 +1,97 @@
+**************************************************************************
+*   Class attributes.                                                    *
+**************************************************************************
+Instantiation: Public
+Message class:
+State: Implemented
+Final Indicator: X
+R/3 Release: 740
+
+**************************************************************************
+*   Public section of class.                                             *
+**************************************************************************
+class YZSAA_UTIL_DATE definition
+  public
+  final
+  create public .
+
+public section.
+
+  constants C_ID_DOT type CHAR15 value 'ID_DOT' ##NO_TEXT.
+  constants C_ID_SLASH type CHAR15 value 'ID_SLASH' ##NO_TEXT.
+  constants C_ID_DASH type CHAR15 value 'ID_DASH' ##NO_TEXT.
+  constants C_ID_SHORT type CHAR15 value 'ID_SHORT' ##NO_TEXT.
+  constants C_ID_LONG type CHAR15 value 'ID_LONG' ##NO_TEXT.
+  constants C_ID_FULL type CHAR15 value 'ID_FULL' ##NO_TEXT.
+  constants C_EN_SLASH type CHAR15 value 'EN_SLASH' ##NO_TEXT.
+  constants C_EN_DASH type CHAR15 value 'EN_DASH' ##NO_TEXT.
+  constants C_EN_SHORT type CHAR15 value 'EN_SHORT' ##NO_TEXT.
+  constants C_EN_LONG type CHAR15 value 'EN_LONG' ##NO_TEXT.
+  constants C_EN_ORD_LONG type CHAR15 value 'EN_ORD_LONG' ##NO_TEXT.
+  constants C_EN_ORD_SHORT type CHAR15 value 'EN_ORD_SHORT' ##NO_TEXT.
+  constants C_EN_FULL type CHAR15 value 'EN_FULL' ##NO_TEXT.
+
+  class-methods CONVERT
+    importing
+      value(IV_DATE) type D
+      value(IV_FORMAT) type CHAR15
+    returning
+      value(RV_RESULT) type STRING
+    raising
+      YCX_SAAUTIL_ERROR .
+
+**************************************************************************
+*   Private section of class.                                            *
+**************************************************************************
+private section.
+
+  class-methods GET_MONTH_ID_SHORT
+    importing
+      value(IV_MONTH) type I
+    returning
+      value(RV_NAME) type STRING .
+  class-methods GET_MONTH_ID_LONG
+    importing
+      value(IV_MONTH) type I
+    returning
+      value(RV_RETURN) type STRING .
+  class-methods GET_MONTH_EN_SHORT
+    importing
+      value(IV_MONTH) type I
+    returning
+      value(RV_RETURN) type STRING .
+  class-methods GET_MONTH_EN_LONG
+    importing
+      value(IV_MONTH) type I
+    returning
+      value(RV_RETURN) type STRING .
+  class-methods GET_DAY_ID
+    importing
+      value(IV_DATE) type D
+    returning
+      value(RV_NAME) type STRING .
+  class-methods GET_DAY_EN
+    importing
+      value(IV_DATE) type D
+    returning
+      value(RV_NAME) type STRING .
+  class-methods GET_ORDINAL_SUFFIX
+    importing
+      value(IV_DAY) type I
+    returning
+      value(RV_SUFFIX) type STRING .
+
+**************************************************************************
+*   Protected section of class.                                          *
+**************************************************************************
+protected section.
+
+**************************************************************************
+*   Types section of class.                                              *
+**************************************************************************
+*"* dummy include to reduce generation dependencies between
+*"* class YZSAA_UTIL_DATE and it's users.
+*"* touched if any type reference has been changed
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740

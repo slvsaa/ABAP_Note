@@ -1,0 +1,26 @@
+**************************************************************************
+*   Method attributes.                                                   *
+**************************************************************************
+Instantiation: Private
+**************************************************************************
+
+  METHOD get_ordinal_suffix.
+    " Aturan ordinal English:
+    "   11, 12, 13 # selalu 'th' (bukan 11st/12nd/13rd)
+    "   x1 # st  |  x2 # nd  |  x3 # rd  |  lainnya # th
+
+    IF iv_day BETWEEN 11 AND 13.
+      rv_suffix = 'th'.
+      RETURN.
+    ENDIF.
+
+    CASE iv_day MOD 10.
+      WHEN 1. rv_suffix = 'st'.
+      WHEN 2. rv_suffix = 'nd'.
+      WHEN 3. rv_suffix = 'rd'.
+      WHEN OTHERS. rv_suffix = 'th'.
+    ENDCASE.
+  ENDMETHOD.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740

@@ -1,0 +1,29 @@
+**************************************************************************
+*   Method attributes.                                                   *
+**************************************************************************
+Instantiation: Private
+**************************************************************************
+
+  method GET_DAY_EN.
+    DATA lv_day_num TYPE i.
+    DATA lv_day_str TYPE char1.
+
+    CALL FUNCTION 'DATE_COMPUTE_DAY'
+      EXPORTING
+        date = iv_date
+      IMPORTING
+        day  = lv_day_str.
+
+    lv_day_num = lv_day_str.
+
+    DATA lt_days TYPE TABLE OF string WITH EMPTY KEY.
+    lt_days = VALUE #(
+      ( |Monday| ) ( |Tuesday| ) ( |Wednesday| ) ( |Thursday| )
+      ( |Friday| ) ( |Saturday| ) ( |Sunday| )
+    ).
+
+    READ TABLE lt_days INDEX lv_day_num INTO rv_name.
+  endmethod.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740
