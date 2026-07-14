@@ -28,8 +28,8 @@ Instantiation: Public
       DATA lv_first TYPE string.
       DATA lv_rest  TYPE string.
 
-      lv_first = to_upper( lv_word(1) ).           " Huruf pertama # upper
-      lv_rest  = to_lower( lv_word+1 ).            " Sisanya # lower
+      lv_first = to_upper( lv_word(1) ).           " Huruf pertama -> upper
+      lv_rest  = to_lower( lv_word+1 ).            " Sisanya -> lower
       lv_word  = |{ lv_first }{ lv_rest }|.
 
       MODIFY lt_words FROM lv_word.
