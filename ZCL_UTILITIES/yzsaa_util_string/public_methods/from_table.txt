@@ -1,0 +1,38 @@
+**************************************************************************
+*   Method attributes.                                                   *
+**************************************************************************
+Instantiation: Public
+**************************************************************************
+
+  METHOD from_table.
+    "*----------------------------------------------------------------*
+    "* FROM_TABLE
+    "* Join internal table of string menjadi satu string dengan delimiter.
+    "* Contoh: ['A','B','C'] dengan delimiter ',' -> 'A,B,C'
+    "*----------------------------------------------------------------*
+
+    CHECK it_table IS NOT INITIAL.
+
+    DATA lv_first TYPE abap_bool VALUE abap_true.
+    DATA lv_word  TYPE string.
+
+    LOOP AT it_table INTO lv_word.
+      IF lv_first = abap_true.
+        rv_result = lv_word.
+        lv_first  = abap_false.
+      ELSE.
+        IF iv_no_delimiter = abap_true.
+          " Gabung langsung tanpa separator apapun
+          rv_result = rv_result && lv_word.
+        ELSE.
+          " RESPECTING BLANKS: pertahankan spasi dari iv_delimiter (CHAR literal)
+          CONCATENATE rv_result iv_delimiter lv_word
+            INTO rv_result
+            RESPECTING BLANKS.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740

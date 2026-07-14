@@ -1,0 +1,76 @@
+**************************************************************************
+*   Class attributes.                                                    *
+**************************************************************************
+Instantiation: Public
+Message class:
+State: Implemented
+Final Indicator: X
+R/3 Release: 740
+
+**************************************************************************
+*   Public section of class.                                             *
+**************************************************************************
+class YZSAA_UTIL_STRING definition
+  public
+  final
+  create public .
+
+public section.
+
+  class-methods PROPER_CASE
+    importing
+      value(IV_STRING) type STRING
+    returning
+      value(RV_RESULT) type STRING .
+  class-methods TRUNCATE
+    importing
+      value(IV_STRING) type STRING
+      value(IV_LENGTH) type I
+      value(IV_ELLIPSIS) type STRING default '...'
+    returning
+      value(RV_RESULT) type STRING
+    raising
+      YCX_SAAUTIL_ERROR .
+  class-methods TO_TABLE
+    importing
+      value(IV_STRING) type STRING
+      value(IV_DELIMITER) type STRING
+    returning
+      value(RT_RESULT) type STRING_TABLE
+    raising
+      YCX_SAAUTIL_ERROR .
+  class-methods FROM_TABLE
+    importing
+      value(IT_TABLE) type STRING_TABLE
+      value(IV_DELIMITER) type CSEQUENCE optional
+      value(IV_NO_DELIMITER) type ABAP_BOOL default ABAP_FALSE
+    returning
+      value(RV_RESULT) type STRING .
+  class-methods REMOVE_CHARS
+    importing
+      value(IV_STRING) type STRING
+      value(IV_CHARS) type STRING
+    returning
+      value(RV_RESULT) type STRING
+    raising
+      YCX_SAAUTIL_ERROR .
+
+**************************************************************************
+*   Private section of class.                                            *
+**************************************************************************
+private section.
+
+**************************************************************************
+*   Protected section of class.                                          *
+**************************************************************************
+protected section.
+
+**************************************************************************
+*   Types section of class.                                              *
+**************************************************************************
+*"* dummy include to reduce generation dependencies between
+*"* class YZSAA_UTIL_STRING and it's users.
+*"* touched if any type reference has been changed
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740

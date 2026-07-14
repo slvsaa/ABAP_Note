@@ -1,0 +1,45 @@
+**************************************************************************
+*   Method attributes.                                                   *
+**************************************************************************
+Instantiation: Public
+**************************************************************************
+
+  METHOD proper_case.
+    "*----------------------------------------------------------------*
+    "* PROPER_CASE
+    "* Ubah setiap huruf pertama tiap kata menjadi kapital,
+    "* sisanya lowercase.
+    "* Contoh: 'jakarta pusat' -> 'Jakarta Pusat'
+    "*         'PT MAJU BERSAMA' -> 'Pt Maju Bersama'
+    "*----------------------------------------------------------------*
+
+    " Guard: string kosong # return kosong
+    CHECK iv_string IS NOT INITIAL.
+
+    " Split per kata berdasarkan spasi
+    DATA lt_words TYPE string_table.
+    SPLIT iv_string AT ' ' INTO TABLE lt_words.
+
+    " Proses tiap kata: huruf pertama upper, sisanya lower
+    DATA lv_word TYPE string.
+    LOOP AT lt_words INTO lv_word.
+      IF lv_word IS INITIAL. CONTINUE. ENDIF.
+
+      DATA lv_first TYPE string.
+      DATA lv_rest  TYPE string.
+
+      lv_first = to_upper( lv_word(1) ).           " Huruf pertama # upper
+      lv_rest  = to_lower( lv_word+1 ).            " Sisanya # lower
+      lv_word  = |{ lv_first }{ lv_rest }|.
+
+      MODIFY lt_words FROM lv_word.
+    ENDLOOP.
+
+    " Gabung kembali dengan spasi
+    rv_result = from_table(
+      it_table     = lt_words
+      iv_delimiter = ' ' ).
+  ENDMETHOD.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740

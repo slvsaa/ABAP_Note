@@ -1,0 +1,36 @@
+**************************************************************************
+*   Method attributes.                                                   *
+**************************************************************************
+Instantiation: Public
+**************************************************************************
+
+  METHOD truncate.
+    "*----------------------------------------------------------------*
+    "* TRUNCATE
+    "* Potong string ke panjang maksimal iv_length.
+    "* Jika kepotong, tambahkan ellipsis di akhir.
+    "* Contoh (length=20): 'Ini kalimat yang panjang' -> 'Ini kalimat yang ...'
+    "*----------------------------------------------------------------*
+
+    " Validasi: panjang minimal harus lebih besar dari panjang ellipsis
+    DATA(lv_ellipsis_len) = strlen( iv_ellipsis ).
+    IF iv_length <= lv_ellipsis_len.
+      RAISE EXCEPTION TYPE ycx_saautil_error
+        EXPORTING
+          mv_source  = 'UTIL_STRING'
+          mv_message = |iv_length ({ iv_length }) harus lebih besar dari panjang ellipsis ({ lv_ellipsis_len })|.
+    ENDIF.
+
+    " Kalau string lebih pendek dari batas, kembalikan apa adanya
+    IF strlen( iv_string ) <= iv_length.
+      rv_result = iv_string.
+      RETURN.
+    ENDIF.
+
+    " Potong dan tambahkan ellipsis
+    DATA(lv_cut) = iv_length - lv_ellipsis_len.
+    rv_result = |{ iv_string(lv_cut) }{ iv_ellipsis }|.
+  ENDMETHOD.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740

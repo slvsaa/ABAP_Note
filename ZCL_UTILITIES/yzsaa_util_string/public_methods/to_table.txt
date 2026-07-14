@@ -1,0 +1,28 @@
+**************************************************************************
+*   Method attributes.                                                   *
+**************************************************************************
+Instantiation: Public
+**************************************************************************
+
+  METHOD to_table.
+    "*----------------------------------------------------------------*
+    "* TO_TABLE
+    "* Split string dengan delimiter menjadi internal table of string.
+    "* Contoh: 'A,B,C' dengan delimiter ',' -> ['A','B','C']
+    "*----------------------------------------------------------------*
+
+    " Validasi: delimiter tidak boleh kosong
+    IF iv_delimiter IS INITIAL.
+      RAISE EXCEPTION TYPE ycx_saautil_error
+        EXPORTING
+          mv_source  = 'UTIL_STRING'
+          mv_message = 'Delimiter tidak boleh kosong'.
+    ENDIF.
+
+    CHECK iv_string IS NOT INITIAL.
+
+    SPLIT iv_string AT iv_delimiter INTO TABLE rt_result.
+  ENDMETHOD.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740

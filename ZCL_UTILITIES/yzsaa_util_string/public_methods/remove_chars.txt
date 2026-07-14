@@ -1,0 +1,40 @@
+**************************************************************************
+*   Method attributes.                                                   *
+**************************************************************************
+Instantiation: Public
+**************************************************************************
+
+  METHOD remove_chars.
+    "*----------------------------------------------------------------*
+    "* REMOVE_CHARS
+    "* Hapus semua kemunculan karakter-karakter tertentu dari string.
+    "* iv_chars berisi semua karakter yang ingin dihapus.
+    "* Contoh: iv_string = 'Hello, World!' iv_chars = ',!'
+    "*          -> 'Hello World'
+    "*----------------------------------------------------------------*
+
+    " Validasi: chars tidak boleh kosong
+    IF iv_chars IS INITIAL.
+      RAISE EXCEPTION TYPE ycx_saautil_error
+        EXPORTING
+          mv_source  = 'UTIL_STRING'
+          mv_message = 'iv_chars tidak boleh kosong'.
+    ENDIF.
+
+    CHECK iv_string IS NOT INITIAL.
+
+    rv_result = iv_string.
+
+    " Loop tiap karakter di iv_chars, hapus semua kemunculannya
+    DATA lv_idx TYPE i.
+    DATA lv_char TYPE string.
+
+    DO strlen( iv_chars ) TIMES.
+      lv_idx  = sy-index - 1.
+      lv_char = iv_chars+lv_idx(1).
+      REPLACE ALL OCCURRENCES OF lv_char IN rv_result WITH ''.
+    ENDDO.
+  ENDMETHOD.
+
+----------------------------------------------------------------------------------
+Extracted by Mass Download version 1.5.0 - E.G.Mellodew. 1998-2026. Sap Release 740
